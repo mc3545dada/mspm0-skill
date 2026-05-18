@@ -2,7 +2,7 @@
 
 面向 TI MSPM0 + CCS / CCS Theia + SysConfig + DriverLib 的 AI 编程助手 skill 包。
 
-本项目主要服务于国内 MSPM0 开发、电赛备赛和 TI官方开发板/立创天猛星等 MSPM0G3507 使用场景，帮助 Claude Code、OpenCode、OpenClaw、Continue、Cursor、Codex 等 CLI / 编辑器 Agent 更安全地理解和修改 MSPM0 CCS 工程。
+本项目主要服务于国内 MSPM0 开发、电赛备赛和 TI官方开发板/立创天猛星等 MSPM0G3507 使用场景，帮助 Claude Code、OpenCode、OpenClaw、Continue、Cursor、Codex 等 CLI / 编辑器 Agent 更安全地理解和修改 MSPM0 工程。
 
 
 ## 主要功能
@@ -10,6 +10,7 @@
 - 通过CLI 修改开发M0系列芯片的.syscfg文件 来初始化引脚
 - 修改 底层/应用层 逻辑并自动编译、烧录程序至连接的开发板
 - 使用scripts中部分工具来进行自动收发串口数据/.syscfg文件检查等
+- 在无准备好的例程时使用脚本自动查找下载的官方例程文件来开发
 - 对电机/舵机等结构进行自动调参/逻辑优化等
 
 ## 安装入口
@@ -100,11 +101,12 @@ skills/mspm0-ccs/
 │  ├─ serial_console.py
 │  └─ index_syscfg_examples.py
 ├─ assets/
-│  └─ snippets/
-│     ├─ clock_80mhz_mfclk.syscfg.md
-│     ├─ gpio_output_led.syscfg.md
-│     ├─ uart0_blocking_tx.syscfg.md
-│     └─ mspm0g3507_lqfp64_empty_scaffold.syscfg.md
+│  ├─ snippets/
+│  │  ├─ clock_80mhz_mfclk.syscfg.md
+│  │  ├─ gpio_output_led.syscfg.md
+│  │  ├─ uart0_blocking_tx.syscfg.md
+│  │  └─ mspm0g3507_lqfp64_empty_scaffold.syscfg.md
+│  └─ screenshots/
 └─ examples/
    ├─ empty_project/
    ├─ led_blink/
@@ -130,6 +132,17 @@ skills/mspm0-ccs/
 
 ## 使用方式
 
+### 从头开始
+ - 将skill添加到你的Agent工具后，使用它打开你的 MSPM0 项目文件夹
+ - 使用CCS (或其他编译工具) 至少编译一次空项目，然后配置你的烧录器
+ - 之后开始 Vibe Coding~
+### 对已有的M0项目使用
+ - 建议对你的项目文件做一个描述，或设计一个AGENTS.md文件供其参考
+ - 或者让Agent 读懂你的项目后直接使用即可
+ - 如读串口调电机参数/写算法/初始化外设/更改项目结构等
+
+
+---
 安装后，在 MSPM0 CCS 工程里可以这样要求 Agent：
 
 ```text
@@ -144,7 +157,19 @@ skills/mspm0-ccs/
 检查当前工程的 UART SysConfig、生成宏和串口发送代码。
 ```
 
+## 使用截图
+
+下面是 Claude Code 中调用本 skill 配置 MSPM0 工程、编译和烧录的实际使用示例：
+
+![Claude Code 调用 mspm0-ccs skill 配置工程](skills/mspm0-ccs/assets/screenshots/claude-code-skill-start.png)
+
+![Claude Code 使用 DSLite 烧录 MSPM0 工程](skills/mspm0-ccs/assets/screenshots/claude-code-flash.png)
+
+![Claude Code 完成 SysConfig、编译和烧录后的总结](skills/mspm0-ccs/assets/screenshots/claude-code-summary.png)
+
 ## 脚本
+
+Agent会在需要时自动使用对应脚本，以下为脚本单独使用示例：
 
 静态检查当前 CCS 工程：
 
@@ -176,9 +201,13 @@ python skills\mspm0-ccs\scripts\index_syscfg_examples.py C:\ti\mspm0_sdk_2_10_00
 - 新建 CCS 工程通常需要先手动编译一次，生成 `Debug/makefile`、`Debug/subdir_rules.mk` 和 `.out`。
 - 烧录前必须确认 `targetConfigs/*.ccxml` 和实际烧录器一致。
 - 自动烧录建议使用 DSLite System Reset：`-e -r 2 -u`。
-- 32MHz 下 `delay_cycles(32000000)` 约 1 秒；80MHz 下 `delay_cycles(80000000)` 约 1 秒。
 
 ## 例程说明
+
+-  examples/ 下的目录均为我自己测试过的例程/syscfg文件，Agent会优先参考此目录下的例程作为依据
+- 如果用户的要求不能在此目录下找到参考例程则会使用附带工具搜索计算机内TI SDK来获取官方例程
+-  建议在使用时，提前将部分自己测试好的项目放到这个目录下供Agent参考
+---
 
 - `examples/empty_project/`：未编译空工程基线，默认 32MHz 风格。
 - `examples/led_blink/`：PB22 LED 32MHz 闪灯基线。
@@ -189,8 +218,8 @@ python skills\mspm0-ccs\scripts\index_syscfg_examples.py C:\ti\mspm0_sdk_2_10_00
 
 - 增强 Python 串口收发工具。
 - 增加自动烧录封装。
-- 扩展 UART DMA / 不定长收发示例。
-- 在串口工具稳定后，探索 PID / 舵机 / 云台等参数自动调整流程。
+- 增加更多例程。
+- 完善 PID / 舵机 / 云台等参数自动调整流程。
 
 ## 参考资料
 
@@ -199,3 +228,7 @@ python skills\mspm0-ccs\scripts\index_syscfg_examples.py C:\ti\mspm0_sdk_2_10_00
 - TI MSPM0 SysConfig Guide: https://software-dl.ti.com/msp430/esd/MSPM0-SDK/2_05_01_00/docs/english/tools/sysconfig_guide/doc_guide/doc_guide-srcs/sysconfig_guide.html
 - TI LP-MSPM0G3507 https://www.ti.com.cn/tool/cn/LP-MSPM0G3507
 - 立创天猛星 MSPM0G3507 文档: https://wiki.lckfb.com/zh-hans/tmx-mspm0g3507/
+
+## 开源协议
+
+本项目使用 MIT License，详见 [LICENSE](LICENSE)。

@@ -13,16 +13,6 @@
 * **例程管理**：无现成例程时自动查找官方例程文件
 * **参数调优**：电机/舵机等结构的自动调参和逻辑优化
 
-## 安装入口
-
-真正需要安装的是这一层目录：
-
-```text
-skills/mspm0-ccs/
-```
-
-仓库根目录的 `AGENTS.md` / `CLAUDE.md` 是“开发本仓库时”的 Agent 指令，不是用户安装入口。
-
 ## 目录结构
 
 ```text
@@ -41,6 +31,13 @@ mspm0-skill/
 ```
 
 ## 安装方式
+
+### 快速安装
+
+```bash
+npx skills add mc3545dada/mspm0-skill@mspm0-ccs
+```
+### 手动安装
 
 ### Claude Code
 

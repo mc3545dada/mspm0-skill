@@ -1,17 +1,17 @@
-# MSPM0 CCS Agent Skill
+# MSPM0Skill
 
-面向 TI MSPM0 + CCS / CCS Theia + SysConfig + DriverLib 的 AI 编程助手 skill 包。
+面向 TI MSPM0 +  SysConfig + DriverLib 的 AI 编程助手 skill 包。
 
 本项目主要服务于国内 MSPM0 开发、电赛备赛和 TI官方开发板/立创天猛星等 MSPM0G3507 使用场景，帮助 Claude Code、OpenCode、OpenClaw、Continue、Cursor、Codex 等 CLI / 编辑器 Agent 更安全地理解和修改 MSPM0 工程。
 
 
 ## 主要功能
 ### 提供对原生MSPM0+CCS环境的支持，使AI Agent:
-- 通过CLI 修改开发M0系列芯片的.syscfg文件 来初始化引脚
-- 修改 底层/应用层 逻辑并自动编译、烧录程序至连接的开发板
-- 使用scripts中部分工具来进行自动收发串口数据/.syscfg文件检查等
-- 在无准备好的例程时使用脚本自动查找下载的官方例程文件来开发
-- 对电机/舵机等结构进行自动调参/逻辑优化等
+* **引脚配置**：通过 CLI 修改 `.syscfg` 文件初始化外设引脚
+* **代码修改**：修改底层/应用层逻辑，自动编译并烧录到开发板
+* **调试辅助**：串口数据收发、`.syscfg` 文件自动检查
+* **例程管理**：无现成例程时自动查找官方例程文件
+* **参数调优**：电机/舵机等结构的自动调参和逻辑优化
 
 ## 安装入口
 
@@ -26,7 +26,7 @@ skills/mspm0-ccs/
 ## 目录结构
 
 ```text
-mspm0-ccs-agent-skill/
+mspm0-skill/
 ├─ README.md
 ├─ AGENTS.md
 ├─ CLAUDE.md
@@ -143,7 +143,7 @@ skills/mspm0-ccs/
 
 
 ---
-安装后，在 MSPM0 CCS 工程里可以这样要求 Agent：
+安装后，在 MSPM0 工程里可以这样要求 Agent：
 
 ```text
 请使用 mspm0-ccs skill，先检查当前工程的 .syscfg 和 ti_msp_dl_config.h，

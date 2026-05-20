@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "name": "led_blink",
+  "title": "Tianmengxing PB22 LED Blink",
+  "description": "Minimal PB22 GPIO blink reference for the LCKFB Tianmengxing MSPM0G3507 onboard LED.",
+  "board": "LCKFB Tianmengxing MSPM0G3507",
+  "device": "MSPM0G3507",
+  "package": "LQFP-64",
+  "sdk": "MSPM0 SDK 2.10.00.04",
+  "sysconfig": "1.26.2",
+  "validated": true,
+  "validation_level": "hardware",
+  "complexity": "basic",
+  "clock": {
+    "cpuclk_hz": 32000000,
+    "delay_cycles_1s": 32000000
+  },
+  "peripherals": ["SYSCTL", "GPIO"],
+  "pins": ["PB22"],
+  "source_files": ["src/main.c"],
+  "syscfg": "example.syscfg",
+  "generated_names": ["LED_PORT", "LED_PIN_22_PIN", "SYSCFG_DL_init"],
+  "tags": ["gpio", "led", "pb22", "blink"]
+}

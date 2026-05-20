@@ -12,6 +12,7 @@
 * **调试辅助**：串口数据收发、`.syscfg` 文件自动检查
 * **例程管理**：无现成例程时自动查找官方例程文件
 * **参数调优**：电机/舵机等结构的自动调参和逻辑优化
+* **个性化定制**：可以要求Agents把自己的项目融合进Skill
 
 ## 目录结构
 
@@ -82,19 +83,14 @@ OpenClaw 如果使用自己的技能目录，也可以复制到：
 skills/mspm0-ccs/
 ├─ SKILL.md
 ├─ references/
-│  ├─ syscfg_rules.md
-│  ├─ ccs_project_rules.md
-│  ├─ driverlib_rules.md
-│  ├─ common_mistakes.md
-│  ├─ validated_workflow.md
-│  ├─ cli_validation.md
-│  ├─ reference_projects.md
-│  ├─ clock_tree_rules.md
-│  ├─ uart_blocking_tx.md
-│  ├─ pwm_breath_led.md
-│  └─ syscfg_schema_sources.md
+│  ├─ sysconfig_ccs_workflow.md
+│  ├─ driverlib_runtime_rules.md
+│  ├─ sdk_schema_lookup.md
+│  └─ hardware_validation_notes.md
 ├─ scripts/
+│  ├─ capture_example.py
 │  ├─ check_syscfg.py
+│  ├─ list_examples.py
 │  ├─ serial_console.py
 │  └─ index_syscfg_examples.py
 ├─ assets/
@@ -187,6 +183,25 @@ python skills\mspm0-ccs\scripts\serial_console.py -p COM6 -b 115200 --timestamp 
 python skills\mspm0-ccs\scripts\index_syscfg_examples.py C:\ti\mspm0_sdk_2_10_00_04 --board LP_MSPM0G3507 --module UART
 ```
 
+列出当前 skill 内已经整理好的例程：
+
+```powershell
+python skills\mspm0-ccs\scripts\list_examples.py
+```
+
+把自己的 CCS 工程提炼成 skill 兼容例程：
+
+```powershell
+python skills\mspm0-ccs\scripts\capture_example.py C:\Users\3545\workspace_ccstheia\my_project `
+  --name my_uart_example `
+  --include "*.c" `
+  --include "app\*.c" `
+  --include "app\*.h" `
+  --board "LCKFB Tianmengxing MSPM0G3507"
+```
+
+复杂工程建议显式写 `--include`，只打包和例程主题相关的 `.c/.h` 文件；不要直接把完整 CCS 工程、`Debug/`、`.out` 或生成文件放进 `examples/`。
+
 如果 VOFA+ 或其他串口助手已经打开同一个 COM 口，Python 会无法打开该串口。测试 Python 工具前需要先关闭占用串口的软件。
 
 ## 关键经验
@@ -195,15 +210,20 @@ python skills\mspm0-ccs\scripts\index_syscfg_examples.py C:\ti\mspm0_sdk_2_10_00
 - 不要手动修改 `ti_msp_dl_config.c` / `ti_msp_dl_config.h`。
 - 修改 `.syscfg` 后，需要重新运行 SysConfig 或重新构建 CCS 工程。
 - 不要猜生成函数和宏名，先查看生成的 `ti_msp_dl_config.h`。
+- 如果用户缺少关键参数，应先参考已验证例程/官方例程，或者在执行前询问并给出推荐默认值。
+- 驱动外部模块时，应尽量索要数据手册、接线方式、供电电压、协议参数和关键时序。
+- 如果多次驱动失败且代码、SysConfig、编译、烧录都看起来正确，应提醒用户排查硬件连接、供电、模块模式和测试方法。
 - 新建 CCS 工程通常需要先手动编译一次，生成 `Debug/makefile`、`Debug/subdir_rules.mk` 和 `.out`。
 - 烧录前必须确认 `targetConfigs/*.ccxml` 和实际烧录器一致。
 - 自动烧录建议使用 DSLite System Reset：`-e -r 2 -u`。
+- OpenOCD 烧录方式已预留后续扩展位置，但当前实测链路仍是 UniFlash / DSLite + J-Link。
 
 ## 例程说明
 
--  examples/ 下的目录均为我自己测试过的例程/syscfg文件，Agent会优先参考此目录下的例程作为依据
-- 如果用户的要求不能在此目录下找到参考例程则会使用附带工具搜索计算机内TI SDK来获取官方例程
--  建议在使用时，提前将部分自己测试好的项目放到这个目录下供Agent参考
+- `examples/` 是主要例程参考目录，Agent 会优先通过 `manifest.json` 快速选择相近例程。
+- 每个例程包含 `example.syscfg`、`README.md`、`manifest.json` 和 `src/`。
+- 如果当前例程不覆盖用户需求，Agent 会使用附带工具搜索本机 TI SDK 官方例程。
+- 用户自己的项目不要整工程直接扔进 `examples/`；建议要求Agents使用 `capture_example.py` 抽取成精简例程包。
 ---
 
 - `examples/empty_project/`：未编译空工程基线，默认 32MHz 风格。
@@ -215,6 +235,7 @@ python skills\mspm0-ccs\scripts\index_syscfg_examples.py C:\ti\mspm0_sdk_2_10_00
 
 - 增强 Python 串口收发工具。
 - 增加自动烧录封装。
+- 尝试增加OpenOCD方式烧录
 - 增加更多例程。
 - 完善 PID / 舵机 / 云台等参数自动调整流程。
 

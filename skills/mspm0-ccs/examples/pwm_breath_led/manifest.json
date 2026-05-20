@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "name": "pwm_breath_led",
+  "title": "PB22 PWM Breathing LED",
+  "description": "TIMG8 CCP1 PWM breathing LED reference for the LCKFB Tianmengxing MSPM0G3507 onboard PB22 LED.",
+  "board": "LCKFB Tianmengxing MSPM0G3507",
+  "device": "MSPM0G3507",
+  "package": "LQFP-64",
+  "sdk": "MSPM0 SDK 2.10.00.04",
+  "sysconfig": "1.26.2",
+  "validated": true,
+  "validation_level": "hardware",
+  "complexity": "basic",
+  "clock": {
+    "cpuclk_hz": 80000000,
+    "mfclk_hz": 4000000,
+    "pwm_clock_hz": 2500000
+  },
+  "peripherals": ["SYSCTL", "GPIO", "TIMG_PWM"],
+  "pins": ["PB22"],
+  "source_files": ["src/main.c"],
+  "syscfg": "example.syscfg",
+  "generated_names": ["PWM_0_INST", "GPIO_PWM_0_C1_IDX", "GPIO_PWM_0_C1_PIN"],
+  "parameters": {
+    "timer": "TIMG8",
+    "channel": "CCP1",
+    "period_counts": 1000,
+    "compare_range": "1..999"
+  },
+  "tags": ["pwm", "led", "pb22", "breathing", "timg8"]
+}

@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "name": "uart_blocking_tx",
+  "title": "UART0 Blocking TX",
+  "description": "UART0 115200 8N1 blocking transmit smoke test with PB22 blink.",
+  "board": "LCKFB Tianmengxing MSPM0G3507",
+  "device": "MSPM0G3507",
+  "package": "LQFP-64",
+  "sdk": "MSPM0 SDK 2.10.00.04",
+  "sysconfig": "1.26.2",
+  "validated": true,
+  "validation_level": "hardware_serial",
+  "complexity": "basic",
+  "clock": {
+    "cpuclk_hz": 80000000,
+    "mfclk_hz": 4000000
+  },
+  "peripherals": ["SYSCTL", "GPIO", "UART"],
+  "pins": ["PB22", "PA10", "PA11"],
+  "source_files": ["src/main.c"],
+  "syscfg": "example.syscfg",
+  "generated_names": ["UART_0_INST", "UART_0_BAUD_RATE", "GPIO_UART_0_TX_PIN", "GPIO_UART_0_RX_PIN"],
+  "parameters": {
+    "uart": "UART0",
+    "baud": 115200,
+    "format": "8N1"
+  },
+  "tags": ["uart", "blocking", "serial", "ch340", "vofa"]
+}

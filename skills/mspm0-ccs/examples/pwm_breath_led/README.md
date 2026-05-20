@@ -6,7 +6,7 @@ This example is based on the verified `26testproject5` smoke test. It is not a c
 
 ## Clock Note
 
-This example uses the 80 MHz clock-tree pattern from `references/clock_tree_rules.md`:
+This example uses the 80 MHz clock-tree pattern summarized in `../../references/hardware_validation_notes.md`:
 
 - CPUCLK: 80 MHz
 - HFXT: 40 MHz input on PA5 / PA6
@@ -35,6 +35,12 @@ The verified generated header contained:
 #define GPIO_PWM_0_C1_IOMUX    (IOMUX_PINCM50)
 #define GPIO_PWM_0_C1_IDX      DL_TIMER_CC_1_INDEX
 ```
+
+## Files
+
+- `example.syscfg`: 80 MHz clock tree and PB22 / TIMG8_CCP1 PWM setup
+- `src/main.c`: DriverLib PWM breathing pattern
+- `manifest.json`: machine-readable summary for example selection
 
 ## Application Pattern
 

@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "name": "empty_project",
+  "title": "Empty CCS Project Baseline",
+  "description": "Fresh MSPM0G3507 CCS / CCS Theia empty-project snapshot before generated build output exists.",
+  "board": "Generic MSPM0G3507 CCS empty project",
+  "device": "MSPM0G3507",
+  "package": "LQFP-64",
+  "sdk": "MSPM0 SDK 2.10.00.04",
+  "sysconfig": "1.26.2",
+  "validated": true,
+  "validation_level": "source_snapshot",
+  "complexity": "basic",
+  "clock": {
+    "cpuclk_hz": 32000000,
+    "notes": "Fresh-project 32 MHz-style baseline."
+  },
+  "peripherals": ["SYSCTL", "Board"],
+  "pins": [],
+  "source_files": ["src/empty.c"],
+  "syscfg": "empty.syscfg",
+  "tags": ["empty", "baseline", "fresh-project"]
+}

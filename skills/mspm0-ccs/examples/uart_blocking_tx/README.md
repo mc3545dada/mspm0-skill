@@ -6,7 +6,7 @@ This example is based on the verified `26testproject4` UART smoke test. It is no
 
 ## Clock Note
 
-This example uses the 80 MHz clock-tree pattern from `references/clock_tree_rules.md`:
+This example uses the 80 MHz clock-tree pattern summarized in `../../references/hardware_validation_notes.md`:
 
 - CPUCLK: 80 MHz
 - HFXT: 40 MHz input on PA5 / PA6
@@ -38,7 +38,8 @@ The verified generated header contained:
 ## Files
 
 - `example.syscfg`: 80 MHz clock tree, PB22 LED, and UART0 TX/RX configuration
-- `main.c`: blocking UART string transmit plus PB22 blink
+- `src/main.c`: blocking UART string transmit plus PB22 blink
+- `manifest.json`: machine-readable summary for example selection
 
 ## PC-Side Test
 

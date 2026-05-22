@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static checker for TI MSPM0 CCS / SysConfig projects."""
+"""Static checker for TI MSPM0 SysConfig projects and common CCS / Keil layouts."""
 
 from __future__ import annotations
 
@@ -40,11 +40,12 @@ def find_syscfg_files(root: Path) -> list[Path]:
 
 
 def find_generated_files(root: Path) -> list[Path]:
-    return sorted(p for p in iter_files(root) if p.name in GENERATED_NAMES and has_part(p, root, BUILD_DIRS))
+    return sorted(p for p in iter_files(root) if p.name in GENERATED_NAMES and not has_part(p, root, BUILD_DIRS))
 
 
 def find_output_files(root: Path) -> list[Path]:
-    return sorted(p for p in iter_files(root) if p.suffix == ".out" and has_part(p, root, BUILD_DIRS))
+    output_suffixes = {".out", ".axf", ".hex"}
+    return sorted(p for p in iter_files(root) if p.suffix in output_suffixes and not has_part(p, root, BUILD_DIRS))
 
 
 def find_target_configs(root: Path) -> list[Path]:
@@ -52,6 +53,13 @@ def find_target_configs(root: Path) -> list[Path]:
     if not target_dir.exists():
         return []
     return sorted(target_dir.glob("*.ccxml"))
+
+
+def find_keil_projects(root: Path) -> list[Path]:
+    keil_dir = root / "keil"
+    if not keil_dir.exists():
+        return []
+    return sorted(keil_dir.glob("*.uvprojx"))
 
 
 def find_source_files(root: Path) -> list[Path]:
@@ -189,6 +197,10 @@ def find_validation_hints(root: Path) -> dict[str, str]:
         hints["list_debug_cores"] = f'dslite -c "{ccxmls[0]}" -N'
     if ccxmls and outs:
         hints["flash"] = f'dslite -c "{ccxmls[0]}" -e -r 2 -u "{outs[0]}"'
+
+    keil_projects = find_keil_projects(root)
+    if keil_projects:
+        hints["keil_build"] = f'Open "{keil_projects[0]}" in Keil/uVision and build the active target.'
     return hints
 
 
@@ -215,10 +227,11 @@ def check_project(root: Path) -> tuple[list[Message], dict[str, object]]:
 
     syscfg_files = find_syscfg_files(root)
     details["syscfg_files"] = [rel(p, root) for p in syscfg_files]
+    keil_projects = find_keil_projects(root)
     if not syscfg_files:
         messages.append(Message("error", "没有找到 .syscfg 文件。"))
     elif len(syscfg_files) > 1:
-        messages.append(Message("warning", "找到多个 .syscfg 文件，修改前需要确认当前 CCS 工程使用哪一个。"))
+        messages.append(Message("warning", "找到多个 .syscfg 文件，修改前需要确认当前工程使用哪一个。"))
     else:
         messages.append(Message("ok", f"找到 .syscfg：{rel(syscfg_files[0], root)}", rel(syscfg_files[0], root)))
 
@@ -300,6 +313,8 @@ def check_project(root: Path) -> tuple[list[Message], dict[str, object]]:
         messages.append(Message("ok", "Debug 构建文件已存在，可以尝试使用 gmake -C Debug clean all。", "Debug"))
         if has_duplicate_linker_cmd_inputs(root):
             messages.append(Message("warning", "Debug/makefile 同时引用 ../device_linker.cmd 和 ./device_linker.cmd；这可能导致 gmake clean all 失败或重复链接 linker cmd。优先让 CCS 重新生成构建文件，临时 CLI 验证时避免重复输入。", "Debug/makefile"))
+    elif keil_projects:
+        messages.append(Message("info", "未发现 CCS Debug 构建文件；当前是 Keil 工程，请检查 .uvprojx、Objects/ 和 Listings/。"))
     else:
         messages.append(Message("warning", "Debug 构建文件不完整；新建工程通常需要先在 CCS/CCS Theia 编译一次，或使用 CCS 命令行构建生成 makefile。", "Debug"))
 
@@ -308,14 +323,18 @@ def check_project(root: Path) -> tuple[list[Message], dict[str, object]]:
     if outputs:
         messages.append(Message("ok", f"发现可烧录输出文件：{rel(outputs[0], root)}。", rel(outputs[0], root)))
     else:
-        messages.append(Message("warning", "未发现 Debug/Release 下的 .out 文件；烧录前需要先成功构建工程。"))
+        messages.append(Message("warning", "未发现可烧录输出文件（.out/.axf/.hex）；烧录前需要先成功构建工程。"))
 
     ccxmls = find_target_configs(root)
+    keil_projects = find_keil_projects(root)
     details["target_configs"] = [{"path": rel(p, root), "probe": describe_target_config(p)} for p in ccxmls]
+    details["keil_projects"] = [rel(p, root) for p in keil_projects]
     if ccxmls:
         for ccxml in ccxmls:
             probe = describe_target_config(ccxml)
             messages.append(Message("info", f"目标配置使用调试器：{probe}。请确认它和实际连接的烧录器一致。", rel(ccxml, root)))
+    elif keil_projects:
+        messages.append(Message("info", "未发现 targetConfigs/*.ccxml；当前是 Keil 工程，通常通过 `.uvprojx` 和 Keil 调试器配置来验证。"))
     else:
         messages.append(Message("warning", "未发现 targetConfigs/*.ccxml；DSLite 烧录需要目标配置文件。"))
 
@@ -333,14 +352,14 @@ def print_text(root: Path, messages: list[Message], details: dict[str, object]) 
     if isinstance(hints, dict) and hints:
         print()
         print("Suggested CLI validation chain:")
-        for key in ("sysconfig_cli", "gmake", "list_debug_cores", "flash"):
+        for key in ("sysconfig_cli", "gmake", "keil_build", "list_debug_cores", "flash"):
             if key in hints:
                 print(f"- {key}: {hints[key]}")
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Check an MSPM0 CCS SysConfig project.")
-    parser.add_argument("project", nargs="?", default=".", help="Path to a CCS project directory.")
+    parser = argparse.ArgumentParser(description="Check an MSPM0 SysConfig project.")
+    parser.add_argument("project", nargs="?", default=".", help="Path to a project directory.")
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     args = parser.parse_args()
 

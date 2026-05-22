@@ -2,14 +2,14 @@
 
 面向 TI MSPM0 +  SysConfig + DriverLib 的 AI 编程助手 skill 包。
 
-本项目主要服务于国内 MSPM0 开发、电赛备赛和 TI官方开发板/立创天猛星等 MSPM0G3507 使用场景，帮助 Claude Code、OpenCode、OpenClaw、Continue、Cursor、Codex 等 CLI / 编辑器 Agent 更安全地理解和修改 MSPM0 工程。
+本项目主要服务于国内 MSPM0 开发、电赛备赛和 TI官方开发板/立创天猛星等 MSPM0G3507 使用场景，帮助 Claude Code、OpenCode、OpenClaw、Continue、Cursor、Codex 等 CLI / 编辑器 Agent 更安全地理解和修改 MSPM0 工程。它也补充了对常见 Keil/uVision 工程布局的适配说明。
 
 
 ## 主要功能
 ### 提供对原生MSPM0+CCS环境的支持，使AI Agent:
 * **引脚配置**：通过 CLI 修改 `.syscfg` 文件初始化外设引脚
 * **代码修改**：修改底层/应用层逻辑，自动编译并烧录到开发板
-* **调试辅助**：串口数据接收、`.syscfg` 文件自动检查
+* **调试辅助**：串口数据接收、`.syscfg` / 工程文件自动检查
 * **例程管理**：无现成例程时自动查找官方例程文件
 * **参数调优**：电机/舵机等结构的自动调参和逻辑优化
 * **个性化定制**：可以要求Agents把自己的项目融合进Skill
@@ -139,7 +139,7 @@ skills/mspm0-ccs/
 安装后，在 MSPM0 工程里可以这样要求 Agent：
 
 ```text
-请使用 mspm0-ccs skill，先检查当前工程的 .syscfg 和 ti_msp_dl_config.h，
+请使用 mspm0-ccs skill，先检查当前工程的 `system.syscfg`、Keil `*.uvprojx` 和 `ti_msp_dl_config.h`，
 然后帮我安全地配置天猛星 PB22 板载 LED。
 ```
 
@@ -229,8 +229,8 @@ python skills\mspm0-ccs\scripts\capture_example.py C:\Users\3545\workspace_ccsth
 - 如果用户缺少关键参数，应先参考已验证例程/官方例程，或者在执行前询问并给出推荐默认值。
 - 驱动外部模块时，应尽量索要数据手册、接线方式、供电电压、协议参数和关键时序。
 - 如果多次驱动失败且代码、SysConfig、编译、烧录都看起来正确，应提醒用户排查硬件连接、供电、模块模式和测试方法。
-- 新建 CCS 工程通常需要先手动编译一次，生成 `Debug/makefile`、`Debug/subdir_rules.mk` 和 `.out`。
-- 烧录前必须确认 `targetConfigs/*.ccxml` 和实际烧录器一致。
+- 新建 Keil/CCS 工程通常需要先手动编译一次，生成对应的工程输出目录与链接文件，例如 `Debug/`、`Objects/`、`Listings/`、`.out` 或 `.axf`。
+- 烧录前必须确认 CCS 的 `targetConfigs/*.ccxml` 或 Keil 工程的调试器配置和实际烧录器一致。
 - 自动烧录建议使用 DSLite System Reset：`-e -r 2 -u`。
 - OpenOCD 烧录方式已预留后续扩展位置，但当前实测链路仍是 UniFlash / DSLite + J-Link。
 

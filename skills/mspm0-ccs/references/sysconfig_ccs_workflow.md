@@ -1,6 +1,6 @@
-# SysConfig And CCS Workflow
+# SysConfig And Project Workflow
 
-Use this when editing `.syscfg`, validating a CCS project, building, or flashing.
+Use this when editing `.syscfg` or `system.syscfg`, validating a CCS or Keil project, building, or flashing.
 
 ## SysConfig Editing
 
@@ -49,7 +49,15 @@ Debug/*.mk
 *.map
 ```
 
-Avoid unnecessary edits to `.project`, `.cproject`, `.ccsproject`, `.settings/`, and `targetConfigs/*.ccxml`. These files can change SDK discovery, compiler options, debug probe, and linker behavior.
+Avoid unnecessary edits to `.project`, `.cproject`, `.ccsproject`, `.settings/`, `targetConfigs/*.ccxml`, and Keil `*.uvoptx` files. These files can change SDK discovery, compiler options, debug probe, and linker behavior.
+
+## Keil / uVision Project Rules
+
+- Editable surfaces are normally `system.syscfg`, user source files, user headers, and the Keil project only when build settings truly need to change.
+- Treat a Keil `*.uvprojx` as the project entrypoint when the active project is Keil-based.
+- Treat the project's scatter file as the linker source of truth. If memory layout changes, update it deliberately rather than guessing from CCS defaults.
+- Treat `keil/Objects/`, `keil/Listings/`, `*.uvoptx`, logs, maps, and generated outputs as inspection-only.
+- Keil projects do not use `targetConfigs/*.ccxml`; do not require a CCS debug-config file when the active project is Keil-based.
 
 ## Validation Chain
 
@@ -59,15 +67,17 @@ Run the static checker first:
 python scripts\check_syscfg.py <project-dir>
 ```
 
-Run SysConfig CLI when available. Prefer the exact command generated in `Debug/subdir_rules.mk` when it exists. A fresh project may not have generated makefiles yet; SysConfig CLI can still validate `.syscfg` into a temporary output directory.
+Run SysConfig CLI when available. Prefer the exact command generated in `Debug/subdir_rules.mk` when it exists for CCS projects. A fresh project may not have generated makefiles yet; SysConfig CLI can still validate `.syscfg` into a temporary output directory.
 
-Build through CCS-generated makefiles when present:
+Build through the active project's generated build flow when present:
 
 ```powershell
 gmake -C <project-dir>\Debug clean all
 ```
 
 If `Debug/makefile` references both `../device_linker.cmd` and `-l"./device_linker.cmd"`, treat that as a CCS generated build-file state issue, not an application or SysConfig failure. Regenerate/rebuild in CCS when possible. For one-off CLI validation, avoid linking the same generated linker script twice.
+
+For Keil projects, validate by opening or building the `.uvprojx` in Keil/uVision and checking the generated `ti_msp_dl_config.c` / `ti_msp_dl_config.h`, `Objects/`, and `Listings/` outputs rather than expecting CCS makefiles.
 
 ## DSLite / J-Link Flash
 

@@ -13,7 +13,9 @@ from typing import Iterable
 
 
 GENERATED_NAMES = {"ti_msp_dl_config.c", "ti_msp_dl_config.h"}
-BUILD_DIRS = {"Debug", "Release"}
+CCS_BUILD_DIRS = {"Debug", "Release"}
+KEIL_BUILD_DIRS = {"Objects", "Listings"}
+BUILD_DIRS = CCS_BUILD_DIRS | KEIL_BUILD_DIRS
 SKIP_DIRS = {".git", ".svn", ".hg", ".agents", ".claude", ".codex", "__pycache__"}
 
 
@@ -40,12 +42,12 @@ def find_syscfg_files(root: Path) -> list[Path]:
 
 
 def find_generated_files(root: Path) -> list[Path]:
-    return sorted(p for p in iter_files(root) if p.name in GENERATED_NAMES and not has_part(p, root, BUILD_DIRS))
+    return sorted(p for p in iter_files(root) if p.name in GENERATED_NAMES)
 
 
 def find_output_files(root: Path) -> list[Path]:
     output_suffixes = {".out", ".axf", ".hex"}
-    return sorted(p for p in iter_files(root) if p.suffix in output_suffixes and not has_part(p, root, BUILD_DIRS))
+    return sorted(p for p in iter_files(root) if p.suffix.lower() in output_suffixes)
 
 
 def find_target_configs(root: Path) -> list[Path]:
@@ -56,10 +58,7 @@ def find_target_configs(root: Path) -> list[Path]:
 
 
 def find_keil_projects(root: Path) -> list[Path]:
-    keil_dir = root / "keil"
-    if not keil_dir.exists():
-        return []
-    return sorted(keil_dir.glob("*.uvprojx"))
+    return sorted(p for p in iter_files(root) if p.suffix.lower() == ".uvprojx" and not has_part(p, root, BUILD_DIRS))
 
 
 def find_source_files(root: Path) -> list[Path]:
@@ -192,11 +191,12 @@ def find_validation_hints(root: Path) -> dict[str, str]:
         hints["gmake"] = f'gmake -C "{root / "Debug"}" clean all'
 
     ccxmls = find_target_configs(root)
-    outs = sorted((root / "Debug").glob("*.out"))
+    outputs = find_output_files(root)
+    flash_outputs = [p for p in outputs if p.suffix.lower() == ".out"] or outputs
     if ccxmls:
         hints["list_debug_cores"] = f'dslite -c "{ccxmls[0]}" -N'
-    if ccxmls and outs:
-        hints["flash"] = f'dslite -c "{ccxmls[0]}" -e -r 2 -u "{outs[0]}"'
+    if ccxmls and flash_outputs:
+        hints["flash"] = f'dslite -c "{ccxmls[0]}" -e -r 2 -u "{flash_outputs[0]}"'
 
     keil_projects = find_keil_projects(root)
     if keil_projects:
@@ -279,9 +279,14 @@ def check_project(root: Path) -> tuple[list[Message], dict[str, object]]:
     generated = find_generated_files(root)
     details["generated_files"] = [rel(p, root) for p in generated]
     if generated:
-        messages.append(Message("info", "发现 SysConfig 生成文件；只能读取确认宏名，不要手动修改。"))
+        ccs_generated = [p for p in generated if has_part(p, root, CCS_BUILD_DIRS)]
+        keil_style_generated = [p for p in generated if not has_part(p, root, CCS_BUILD_DIRS)]
+        if ccs_generated:
+            messages.append(Message("info", "发现 CCS Debug/Release 下的 SysConfig 生成文件；只能读取确认宏名，不要手动修改。"))
+        if keil_style_generated:
+            messages.append(Message("info", "发现工程源目录或 Keil 风格布局中的 SysConfig 生成文件；只能读取确认宏名，不要手动修改。"))
     else:
-        messages.append(Message("warning", "未发现 Debug/Release 下的 ti_msp_dl_config.c/.h，工程可能尚未生成或尚未编译。"))
+        messages.append(Message("warning", "未发现 ti_msp_dl_config.c/.h，工程可能尚未生成或尚未编译。"))
 
     headers = [p for p in generated if p.name == "ti_msp_dl_config.h"]
     header_init_names = parse_header_init_names(headers)
@@ -309,13 +314,14 @@ def check_project(root: Path) -> tuple[list[Message], dict[str, object]]:
 
     makefile = root / "Debug" / "makefile"
     subdir_rules = root / "Debug" / "subdir_rules.mk"
-    if makefile.exists() and subdir_rules.exists():
+    has_ccs_build = makefile.exists() and subdir_rules.exists()
+    if has_ccs_build:
         messages.append(Message("ok", "Debug 构建文件已存在，可以尝试使用 gmake -C Debug clean all。", "Debug"))
         if has_duplicate_linker_cmd_inputs(root):
             messages.append(Message("warning", "Debug/makefile 同时引用 ../device_linker.cmd 和 ./device_linker.cmd；这可能导致 gmake clean all 失败或重复链接 linker cmd。优先让 CCS 重新生成构建文件，临时 CLI 验证时避免重复输入。", "Debug/makefile"))
-    elif keil_projects:
-        messages.append(Message("info", "未发现 CCS Debug 构建文件；当前是 Keil 工程，请检查 .uvprojx、Objects/ 和 Listings/。"))
-    else:
+    if keil_projects:
+        messages.append(Message("info", f"发现 Keil/uVision 工程：{rel(keil_projects[0], root)}。请检查 .uvprojx、Objects/ 和 Listings/。", rel(keil_projects[0], root)))
+    if not has_ccs_build and not keil_projects:
         messages.append(Message("warning", "Debug 构建文件不完整；新建工程通常需要先在 CCS/CCS Theia 编译一次，或使用 CCS 命令行构建生成 makefile。", "Debug"))
 
     outputs = find_output_files(root)
@@ -333,9 +339,11 @@ def check_project(root: Path) -> tuple[list[Message], dict[str, object]]:
         for ccxml in ccxmls:
             probe = describe_target_config(ccxml)
             messages.append(Message("info", f"目标配置使用调试器：{probe}。请确认它和实际连接的烧录器一致。", rel(ccxml, root)))
-    elif keil_projects:
+    if keil_projects and not ccxmls:
         messages.append(Message("info", "未发现 targetConfigs/*.ccxml；当前是 Keil 工程，通常通过 `.uvprojx` 和 Keil 调试器配置来验证。"))
-    else:
+    elif keil_projects:
+        messages.append(Message("info", "同时发现 Keil/uVision 工程；如果当前使用 Keil 工作流，请确认 `.uvprojx` 和 Keil 调试器配置。"))
+    if not ccxmls and not keil_projects:
         messages.append(Message("warning", "未发现 targetConfigs/*.ccxml；DSLite 烧录需要目标配置文件。"))
 
     details["validation_hints"] = find_validation_hints(root)

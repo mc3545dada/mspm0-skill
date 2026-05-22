@@ -9,7 +9,7 @@
 ### 提供对原生MSPM0+CCS环境的支持，使AI Agent:
 * **引脚配置**：通过 CLI 修改 `.syscfg` 文件初始化外设引脚
 * **代码修改**：修改底层/应用层逻辑，自动编译并烧录到开发板
-* **调试辅助**：串口数据收发、`.syscfg` 文件自动检查
+* **调试辅助**：串口数据接收、`.syscfg` 文件自动检查
 * **例程管理**：无现成例程时自动查找官方例程文件
 * **参数调优**：电机/舵机等结构的自动调参和逻辑优化
 * **个性化定制**：可以要求Agents把自己的项目融合进Skill
@@ -125,15 +125,15 @@ skills/mspm0-ccs/
 
 ## 使用方式
 
-### 从头开始
- - 将skill添加到你的Agent工具后，使用它打开你的 MSPM0 项目文件夹
- - 使用CCS (或其他编译工具) 至少编译一次空项目，然后配置你的烧录器
- - 之后开始 Vibe Coding~
 ### 对已有的M0项目使用
  - 建议对你的项目文件做一个描述，或设计一个AGENTS.md文件供其参考
  - 或者让Agent 读懂你的项目后直接使用即可
  - 如读串口调电机参数/写算法/初始化外设/更改项目结构等
 
+### 从头开始
+ - 将skill添加到你的Agent工具后，使用它打开你的 MSPM0 项目文件夹
+ - 使用CCS (或其他编译工具) 至少编译一次空项目，然后配置你的烧录器
+ - 之后开始 Vibe Coding~
 
 ---
 安装后，在 MSPM0 工程里可以这样要求 Agent：
@@ -150,15 +150,31 @@ skills/mspm0-ccs/
 检查当前工程的 UART SysConfig、生成宏和串口发送代码。
 ```
 
-## 使用截图
+## 使用示例
 
-下面是 Claude Code 中调用本 skill 配置 MSPM0 工程、编译和烧录的实际使用示例：
+### 使用Claude Code简单做一个闪灯项目
+
+下面是 Claude Code 中调用本 skill 配置 MSPM0g3507 点灯工程、编译和烧录的实际使用示例：
 
 ![Claude Code 调用 mspm0-ccs skill 配置工程](skills/mspm0-ccs/assets/screenshots/claude-code-skill-start.png)
 
 ![Claude Code 使用 DSLite 烧录 MSPM0 工程](skills/mspm0-ccs/assets/screenshots/claude-code-flash.png)
 
 ![Claude Code 完成 SysConfig、编译和烧录后的总结](skills/mspm0-ccs/assets/screenshots/claude-code-summary.png)
+
+### 使用Codex从头开始做陀螺仪(icm45686)驱动同时配置串口
+
+下面是 Codex 中调用本 skill 配置 MSPM0g3507 写陀螺仪驱动、编译和烧录的实际使用示例：
+
+![Codex 调用 mspm0-ccs skill 配置工程](skills/mspm0-ccs/assets/screenshots/codex-ask.png)
+
+![Codex 调用 mspm0-ccs skill 配置工程](skills/mspm0-ccs/assets/screenshots/codex-working.png)
+
+![Codex 调用 mspm0-ccs skill 配置工程](skills/mspm0-ccs/assets/screenshots/codex-summary.png)
+
+![Codex 调用 mspm0-ccs skill 配置工程](skills/mspm0-ccs/assets/screenshots/vofa-output.png)
+
+- 同时我录制了完整使用视频，详见：[Bilibili 完整使用视频](https://www.bilibili.com/video/BV1RbLY6xECu)
 
 ## 脚本
 
@@ -222,10 +238,11 @@ python skills\mspm0-ccs\scripts\capture_example.py C:\Users\3545\workspace_ccsth
 
 - `examples/` 是主要例程参考目录，Agent 会优先通过 `manifest.json` 快速选择相近例程。
 - 每个例程包含 `example.syscfg`、`README.md`、`manifest.json` 和 `src/`。
+- 如果你想让Agents按你的风格来初始化项目，尝试要求它把你曾做过的参考项目融合进skill，它会自动调用工具来融合你的项目进入`examples/`目录
 - 如果当前例程不覆盖用户需求，Agent 会使用附带工具搜索本机 TI SDK 官方例程。
 - 用户自己的项目不要整工程直接扔进 `examples/`；建议要求Agents使用 `capture_example.py` 抽取成精简例程包。
 ---
-
+以下为我预装的简单examples，你也可以移除他们
 - `examples/empty_project/`：未编译空工程基线，默认 32MHz 风格。
 - `examples/led_blink/`：PB22 LED 32MHz 闪灯基线。
 - `examples/uart_blocking_tx/`：80MHz CPUCLK + UART0 阻塞发送字符串基线。

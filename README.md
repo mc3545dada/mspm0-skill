@@ -2,16 +2,17 @@
 
 面向 TI MSPM0 +  SysConfig + DriverLib 的 AI 编程助手 skill 包。
 
-本项目主要服务于国内 MSPM0 开发、电赛备赛和 TI官方开发板/立创天猛星等 MSPM0G3507 使用场景，帮助 Claude Code、OpenCode、OpenClaw、Continue、Cursor、Codex 等 CLI / 编辑器 Agent 更安全地理解和修改 MSPM0 工程。它也补充了对常见 Keil/uVision 工程布局的适配说明。
+本项目主要服务于国内 MSPM0 开发、电赛备赛和 TI官方开发板/立创天猛星等 MSPM0G3507 使用场景，帮助 Claude Code、OpenCode、OpenClaw、Continue、Cursor、Codex 等 CLI / 编辑器 Agent 更安全地理解和修改 MSPM0 工程。它也补充了对常见 Keil/uVision、CMake + GCC + OpenOCD 工程布局的适配说明。
 
 
 ## 主要功能
-### 提供对原生MSPM0+CCS环境的支持，使AI Agent:
+### 提供对 MSPM0 + SysConfig/DriverLib 工程的支持，使 AI Agent:
 * **引脚配置**：通过 CLI 修改 `.syscfg` 文件初始化外设引脚
 * **代码修改**：修改底层/应用层逻辑，自动编译并烧录到开发板
 * **调试辅助**：串口数据接收、`.syscfg` / 工程文件自动检查
 * **例程管理**：无现成例程时自动查找官方例程文件
 * **参数调优**：电机/舵机等结构的自动调参和逻辑优化
+* **模块驱动**：提供某个模块的手册并要求Agents驱动/设计算法等
 * **个性化定制**：可以要求Agents把自己的项目融合进Skill
 
 ## 目录结构
@@ -109,7 +110,7 @@ skills/mspm0-ccs/
 
 ## 已验证环境
 
-目前已实机验证的组合是：
+我目前使用的组合是：
 
 - 开发板：立创天猛星 MSPM0G3507
 - 开发环境：CCS / CCS Theia
@@ -118,10 +119,9 @@ skills/mspm0-ccs/
 - 编译器：TI Arm Clang 4.0.3 LTS
 - 烧录器：J-Link
 - 烧录工具：UniFlash / DSLite
-- 验证外设：PB22 板载 LED、UART0 阻塞发送
-- 已验证时钟：80MHz CPUCLK，MFCLK 4MHz
+- 验证外设：PB22 板载 LED、UART0 阻塞发送等
 
-其他开发板、芯片封装、SDK/CCS 版本、调试器或烧录方式可能也能使用本项目规则，但尚未百分百确认。迁移到其他组合时，应先运行静态检查和最小外设验证。
+其他开发板、芯片封装、SDK/CCS/Keil/CMake 版本、调试器或烧录方式可能也能使用本项目规则，简单测试发现同样支持Keil+Syscfg环境,CMake+OpenOCD工具链等，但尚未百分百确认。迁移到其他组合时，应先运行静态检查和最小外设验证。
 
 ## 使用方式
 
@@ -132,14 +132,14 @@ skills/mspm0-ccs/
 
 ### 从头开始
  - 将skill添加到你的Agent工具后，使用它打开你的 MSPM0 项目文件夹
- - 使用CCS (或其他编译工具) 至少编译一次空项目，然后配置你的烧录器
+ - 按你的工程工具链至少成功编译一次项目，然后配置你的烧录器
  - 之后开始 Vibe Coding~
 
 ---
 安装后，在 MSPM0 工程里可以这样要求 Agent：
 
 ```text
-请使用 mspm0-ccs skill，先检查当前工程的 `system.syscfg`、Keil `*.uvprojx` 和 `ti_msp_dl_config.h`，
+请使用 mspm0-ccs skill，先检查当前工程的 `system.syscfg`和 `ti_msp_dl_config.h`，
 然后帮我安全地配置天猛星 PB22 板载 LED。
 ```
 
@@ -180,7 +180,7 @@ skills/mspm0-ccs/
 
 Agent会在需要时自动使用对应脚本，以下为脚本单独使用示例：
 
-静态检查当前 CCS 工程：
+静态检查当前 MSPM0 工程：
 
 ```powershell
 python skills\mspm0-ccs\scripts\check_syscfg.py C:\Users\3545\workspace_ccstheia\26testproject1
@@ -224,15 +224,15 @@ python skills\mspm0-ccs\scripts\capture_example.py C:\Users\3545\workspace_ccsth
 
 - `.syscfg` 是引脚、外设、时钟和生成代码的源配置文件。
 - 不要手动修改 `ti_msp_dl_config.c` / `ti_msp_dl_config.h`。
-- 修改 `.syscfg` 后，需要重新运行 SysConfig 或重新构建 CCS 工程。
+- 修改 `.syscfg` 后，需要重新运行 SysConfig 或重新构建当前工程。
 - 不要猜生成函数和宏名，先查看生成的 `ti_msp_dl_config.h`。
 - 如果用户缺少关键参数，应先参考已验证例程/官方例程，或者在执行前询问并给出推荐默认值。
 - 驱动外部模块时，应尽量索要数据手册、接线方式、供电电压、协议参数和关键时序。
 - 如果多次驱动失败且代码、SysConfig、编译、烧录都看起来正确，应提醒用户排查硬件连接、供电、模块模式和测试方法。
-- 新建 Keil/CCS 工程通常需要先手动编译一次，生成对应的工程输出目录与链接文件，例如 `Debug/`、`Objects/`、`Listings/`、`.out` 或 `.axf`。
-- 烧录前必须确认 CCS 的 `targetConfigs/*.ccxml` 或 Keil 工程的调试器配置和实际烧录器一致。
+- 新建 Keil/CCS 工程通常需要先手动编译一次，生成对应的工程输出目录与链接文件，例如 `Debug/`、`Objects/`、`Listings/`、`.out` 或 `.axf`。CMake 工程通常需要已有配置好的 build 目录或 preset/toolchain。
+- 烧录前必须确认 CCS 的 `targetConfigs/*.ccxml`、Keil 工程的调试器配置，或 OpenOCD 的 `.cfg` 文件和实际烧录器一致。
 - 自动烧录建议使用 DSLite System Reset：`-e -r 2 -u`。
-- OpenOCD 烧录方式已预留后续扩展位置，但当前实测链路仍是 UniFlash / DSLite + J-Link。
+- OpenOCD 方式需要使用支持 MSPM0 的 TI 扩展分支/构建；`unable to find a matching CMSIS-DAP device` 通常表示没有找到对应调试器，不等于固件编译失败。
 
 ## 例程说明
 
@@ -252,7 +252,7 @@ python skills\mspm0-ccs\scripts\capture_example.py C:\Users\3545\workspace_ccsth
 
 - 增强 Python 串口收发工具。
 - 增加自动烧录封装。
-- 尝试增加OpenOCD方式烧录
+- 完善 OpenOCD 烧录封装和更多探针组合验证。
 - 增加更多例程。
 - 完善 PID / 舵机 / 云台等参数自动调整流程。
 

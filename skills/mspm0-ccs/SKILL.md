@@ -1,22 +1,22 @@
 ---
 name: mspm0-ccs
-description: Tool-neutral CLI agent rules for TI MSPM0 development with Code Composer Studio, Keil/uVision, SysConfig, and DriverLib. Use when an agent needs to inspect or modify MSPM0 projects, edit .syscfg configuration, avoid generated SysConfig/build files, use DriverLib APIs, validate SysConfig output, package reusable MSPM0 examples, or work on NUEDC-style MSPM0 embedded firmware.
+description: Tool-neutral CLI agent rules for TI MSPM0 development with Code Composer Studio, Keil/uVision, CMake/GCC/OpenOCD, SysConfig, and DriverLib. Use when an agent needs to inspect or modify MSPM0 projects, edit .syscfg configuration, avoid generated SysConfig/build files, use DriverLib APIs, validate SysConfig output, package reusable MSPM0 examples, or work on NUEDC-style MSPM0 embedded firmware.
 ---
 
-# MSPM0 CCS Agent Skill
+# MSPM0 Agent Skill
 
-Use this skill for TI MSPM0 firmware projects that use CCS, CCS Theia, Keil/uVision, SysConfig, and DriverLib. It is intended for Claude Code, OpenCode, OpenClaw, Continue, Cursor, Codex, and similar CLI/editor agents.
+Use this skill for TI MSPM0 firmware projects that use SysConfig and DriverLib through CCS / CCS Theia, Keil/uVision, or CMake + Arm GNU Toolchain + OpenOCD workflows. It is intended for Claude Code, OpenCode, OpenClaw, Continue, Cursor, Codex, and similar CLI/editor agents.
 
 ## Default Workflow
 
-1. Locate the project `.syscfg` or `system.syscfg`, editable source files, generated `ti_msp_dl_config.h`, and the IDE project entrypoint in use (`targetConfigs/*.ccxml` for CCS, `keil/*.uvprojx` plus `keil/*.uvoptx` / `mspm0g3507.sct` for Keil/uVision).
+1. Locate the project `.syscfg` or `system.syscfg`, editable source files, generated `ti_msp_dl_config.h`, and the active project entrypoint: `targetConfigs/*.ccxml` for CCS, `*.uvprojx` plus scatter file for Keil/uVision, or `CMakeLists.txt` plus OpenOCD `.cfg` files for CMake/GCC/OpenOCD.
 2. Run `python scripts/check_syscfg.py <project-dir>` when this skill is available.
 3. Read `.syscfg` metadata: device, package, SDK product, SysConfig version, modules, instances, pins, clocks, and interrupts.
 4. Inspect generated `ti_msp_dl_config.h` for macro names, IRQ names, instance names, and the exact SysConfig init function spelling.
 5. Before adding unfamiliar SysConfig fields, inspect the user's existing `.syscfg`, `examples/*/manifest.json`, TI SDK examples, or `source/ti/driverlib/.meta/*.syscfg.js`.
 6. Modify the smallest relevant `.syscfg` and application-code surface.
-7. Regenerate SysConfig output or rebuild through the active IDE's generated build flow.
-8. If flashing, confirm the `.ccxml` debug probe matches the connected hardware and prefer a System Reset after programming.
+7. Regenerate SysConfig output or rebuild through the active toolchain's generated build flow.
+8. If flashing, confirm the configured probe backend matches the connected hardware and prefer a System Reset after programming.
 
 ## Core Rules
 
@@ -31,11 +31,30 @@ Use this skill for TI MSPM0 firmware projects that use CCS, CCS Theia, Keil/uVis
 - If SysConfig emits warnings, report them separately from build/flash success. Do not call a warning-producing generation "clean".
 - If hardware behavior is not verified on a connected board, say that validation stopped at source, SysConfig, or build level.
 
-## Project Reality Checks For Keil Projects
+## Project Shape Checks
+
+- Simple projects usually keep most logic in `main.c`, `empty.c`, or a small number of files. It is acceptable to make narrowly scoped edits there.
+- Framework projects often have multiple source directories such as `app/`, `bsp/`, `components/`, `core/`, `drivers/`, `hal/`, `middleware/`, or `tasks/`. First identify ownership boundaries before adding peripherals or changing control logic.
+- Do not assume every MSPM0 project is CCS-like or single-file. A framework project can still use CCS, Keil, or CMake/GCC/OpenOCD.
+- For control code, confirm whether timing comes from a timer ISR, RTOS task delay, hardware PWM/ADC trigger chain, or a main-loop poll before changing periods or priorities.
+
+## Keil Project Checks
 
 - Treat `system.syscfg` and `ti_msp_dl_config.c` / `ti_msp_dl_config.h` as the configuration source surface for Keil-based MSPM0 projects that keep SysConfig outputs at the project root.
 - Treat a Keil `.uvprojx` as the project entrypoint, the scatter file as the linker source of truth, and `Objects/`, `Listings/`, `*.uvoptx`, build logs, and generated outputs as inspection-only unless a request explicitly targets them.
 - For a project's application code, follow its own source layout rather than assuming CCS defaults.
+
+## CMake / GCC / OpenOCD Checks
+
+- Treat `CMakeLists.txt`, toolchain files, and OpenOCD `.cfg` files as the project entrypoints for CMake/GCC/OpenOCD projects.
+- Build through the existing CMake build directory when present, for example `cmake --build cmake-build-debug --target <target>`.
+- MSPM0 OpenOCD flashing usually requires a TI MSPM0-capable OpenOCD build or TI extension branch. If OpenOCD reports `unable to find a matching CMSIS-DAP device`, report that as probe discovery failure rather than firmware failure.
+- Do not require CCS `targetConfigs/*.ccxml` when the active project uses OpenOCD instead of DSLite.
+
+## FreeRTOS Checks
+
+- If `FreeRTOSConfig.h`, `FreeRTOS.h`, `task.h`, `xTaskCreate`, or `vTaskStartScheduler` are present, treat the project as RTOS-aware.
+- Keep RTOS handling lightweight: respect existing task, queue, ISR, and blocking-call boundaries; do not impose a specific framework architecture unless the user asks.
 
 ## Ambiguous Requests
 
@@ -60,7 +79,7 @@ When asked to drive an external module, sensor, motor driver, servo, display, ra
 
 Read references only when needed:
 
-- `references/sysconfig_ccs_workflow.md`: `.syscfg` editing, CCS / Keil project layout, SysConfig CLI, gmake, DSLite/J-Link, and OpenOCD placeholder.
+- `references/sysconfig_ccs_workflow.md`: `.syscfg` editing, CCS / Keil / CMake project layout, SysConfig CLI, gmake, CMake build, DSLite/J-Link, and OpenOCD.
 - `references/driverlib_runtime_rules.md`: DriverLib usage, interrupts, clock tree, delays, and common runtime mistakes.
 - `references/sdk_schema_lookup.md`: how to find official SysConfig fields and examples in the local MSPM0 SDK.
 - `references/hardware_validation_notes.md`: verified Tianmengxing MSPM0G3507 lessons, HFXT warnings, flash/reset behavior, and real-board caveats.
@@ -84,7 +103,7 @@ Do not require users to drop full CCS projects into `examples/`. Use `scripts/ca
 
 ## Tools
 
-- `python scripts/check_syscfg.py <project-dir>`: static project check for `.syscfg`, generated files, pins, init spelling, build output, target config, and validation hints.
+- `python scripts/check_syscfg.py <project-dir>`: static project check for `.syscfg`, generated files, pins, init spelling, project shape, CCS/Keil/CMake/OpenOCD clues, build output, target config, and validation hints.
 - `python scripts/list_examples.py`: list packaged examples from `examples/*/manifest.json`.
 - `python scripts/capture_example.py <project-dir> --name <example-name> --include <glob>`: package selected source files and `.syscfg` from a user project into `examples/<example-name>/`.
 - `python scripts/index_syscfg_examples.py <mspm0-sdk-root> --board LP_MSPM0G3507 --module UART`: search local TI SDK examples and module metadata.
@@ -94,10 +113,10 @@ For the verified CH340 setup, use `python scripts/serial_console.py -p COM6 -b 1
 
 ## Flash Backends
 
-The verified flash path is DSLite / UniFlash with J-Link. For automated flashing after clock-tree changes, prefer DSLite System Reset:
+The verified CCS flash path is DSLite / UniFlash with J-Link. For automated flashing after clock-tree changes, prefer DSLite System Reset:
 
 ```text
 dslite -c <target.ccxml> -e -r 2 -u <project.out>
 ```
 
-OpenOCD support is intentionally reserved for future work. Until validated, do not claim OpenOCD flashing works for a given board/probe combination.
+For CMake/GCC/OpenOCD projects, use the project's existing flash target or explicit OpenOCD config. Keep the backend explicit and report probe-discovery errors separately from build success.

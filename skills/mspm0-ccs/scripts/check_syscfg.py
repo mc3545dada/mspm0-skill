@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static checker for TI MSPM0 SysConfig projects and common CCS / Keil layouts."""
+"""Static checker for TI MSPM0 SysConfig projects and common toolchain layouts."""
 
 from __future__ import annotations
 
@@ -15,8 +15,37 @@ from typing import Iterable
 GENERATED_NAMES = {"ti_msp_dl_config.c", "ti_msp_dl_config.h"}
 CCS_BUILD_DIRS = {"Debug", "Release"}
 KEIL_BUILD_DIRS = {"Objects", "Listings"}
-BUILD_DIRS = CCS_BUILD_DIRS | KEIL_BUILD_DIRS
+CMAKE_BUILD_PREFIXES = ("cmake-build",)
+COMMON_BUILD_DIRS = {"build", "out"}
+BUILD_DIRS = CCS_BUILD_DIRS | KEIL_BUILD_DIRS | COMMON_BUILD_DIRS
 SKIP_DIRS = {".git", ".svn", ".hg", ".agents", ".claude", ".codex", "__pycache__"}
+FRAMEWORK_DIR_NAMES = {
+    "app",
+    "apps",
+    "application",
+    "bsp",
+    "board",
+    "components",
+    "core",
+    "drivers",
+    "hal",
+    "middleware",
+    "platform",
+    "tasks",
+    "user",
+}
+OPENOCD_CONFIG_NAMES = {"daplink.cfg", "stlink.cfg", "xds110.cfg"}
+OPENOCD_CONTENT_PATTERNS = (
+    r"\bsource\s+\[find\s+",
+    r"\btransport\s+select\s+",
+    r"\badapter\s+(?:speed|driver|serial)\b",
+    r"\binterface\s+",
+    r"\bsource\s+.*(?:interface|target|board)/",
+    r"\btarget\s+create\s+",
+    r"\bflash\s+bank\s+",
+    r"\breset_config\b",
+    r"\bprogram\s+.+(?:verify|reset|exit)",
+)
 
 
 @dataclass
@@ -38,7 +67,7 @@ def read_text(path: Path) -> str:
 
 
 def find_syscfg_files(root: Path) -> list[Path]:
-    return sorted(p for p in iter_files(root) if p.suffix == ".syscfg" and not has_part(p, root, BUILD_DIRS))
+    return sorted(p for p in iter_files(root) if p.suffix == ".syscfg" and not is_build_path(p, root))
 
 
 def find_generated_files(root: Path) -> list[Path]:
@@ -46,8 +75,10 @@ def find_generated_files(root: Path) -> list[Path]:
 
 
 def find_output_files(root: Path) -> list[Path]:
-    output_suffixes = {".out", ".axf", ".hex"}
-    return sorted(p for p in iter_files(root) if p.suffix.lower() in output_suffixes)
+    output_suffixes = {".out", ".axf", ".elf", ".hex", ".bin"}
+    priority = {".out": 0, ".axf": 1, ".elf": 2, ".hex": 3, ".bin": 4}
+    outputs = [p for p in iter_files(root) if p.suffix.lower() in output_suffixes]
+    return sorted(outputs, key=lambda p: (priority.get(p.suffix.lower(), 99), rel(p, root).lower()))
 
 
 def find_target_configs(root: Path) -> list[Path]:
@@ -58,7 +89,21 @@ def find_target_configs(root: Path) -> list[Path]:
 
 
 def find_keil_projects(root: Path) -> list[Path]:
-    return sorted(p for p in iter_files(root) if p.suffix.lower() == ".uvprojx" and not has_part(p, root, BUILD_DIRS))
+    return sorted(p for p in iter_files(root) if p.suffix.lower() == ".uvprojx" and not is_build_path(p, root))
+
+
+def find_cmake_files(root: Path) -> list[Path]:
+    root_cmake = root / "CMakeLists.txt"
+    return [root_cmake] if root_cmake.exists() else []
+
+
+def find_openocd_configs(root: Path) -> list[Path]:
+    configs = [
+        p
+        for p in iter_files(root)
+        if p.suffix.lower() == ".cfg" and not is_build_path(p, root) and is_openocd_config(p)
+    ]
+    return sorted(configs, key=lambda p: (p.name.lower() not in OPENOCD_CONFIG_NAMES, rel(p, root).lower()))
 
 
 def find_source_files(root: Path) -> list[Path]:
@@ -67,7 +112,7 @@ def find_source_files(root: Path) -> list[Path]:
     for path in iter_files(root):
         if path.suffix not in suffixes:
             continue
-        if has_part(path, root, BUILD_DIRS):
+        if is_build_path(path, root):
             continue
         if path.name in GENERATED_NAMES:
             continue
@@ -84,6 +129,29 @@ def iter_files(root: Path) -> Iterable[Path]:
 
 def has_part(path: Path, root: Path, parts: set[str]) -> bool:
     return bool(set(path.relative_to(root).parts) & parts)
+
+
+def is_build_path(path: Path, root: Path) -> bool:
+    parts = path.relative_to(root).parts
+    return bool(set(parts) & BUILD_DIRS) or any(part.startswith(CMAKE_BUILD_PREFIXES) for part in parts)
+
+
+def find_build_dirs(root: Path) -> list[Path]:
+    build_dirs: list[Path] = []
+    for child in root.iterdir():
+        if not child.is_dir():
+            continue
+        if child.name in BUILD_DIRS or child.name.startswith(CMAKE_BUILD_PREFIXES):
+            build_dirs.append(child)
+    return sorted(build_dirs)
+
+
+def is_openocd_config(path: Path) -> bool:
+    name = path.name.lower()
+    text = read_text(path)
+    if name in OPENOCD_CONFIG_NAMES and re.search(r"\b(?:source|transport|adapter|interface|target|reset_config|program)\b", text):
+        return True
+    return any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in OPENOCD_CONTENT_PATTERNS)
 
 
 def parse_metadata(text: str) -> dict[str, str | bool]:
@@ -192,15 +260,31 @@ def find_validation_hints(root: Path) -> dict[str, str]:
 
     ccxmls = find_target_configs(root)
     outputs = find_output_files(root)
-    flash_outputs = [p for p in outputs if p.suffix.lower() == ".out"] or outputs
+    dslite_flash_outputs = [p for p in outputs if p.suffix.lower() == ".out"] or outputs
+    openocd_flash_outputs = [p for p in outputs if p.suffix.lower() in {".elf", ".hex", ".bin"}]
     if ccxmls:
         hints["list_debug_cores"] = f'dslite -c "{ccxmls[0]}" -N'
-    if ccxmls and flash_outputs:
-        hints["flash"] = f'dslite -c "{ccxmls[0]}" -e -r 2 -u "{flash_outputs[0]}"'
+    if ccxmls and dslite_flash_outputs:
+        hints["flash"] = f'dslite -c "{ccxmls[0]}" -e -r 2 -u "{dslite_flash_outputs[0]}"'
 
     keil_projects = find_keil_projects(root)
     if keil_projects:
         hints["keil_build"] = f'Open "{keil_projects[0]}" in Keil/uVision and build the active target.'
+
+    cmake_info = detect_cmake_info(root)
+    if cmake_info["has_cmake"]:
+        build_dir = cmake_info["build_dir"]
+        target = cmake_info.get("target") or "all"
+        if build_dir:
+            hints["cmake_build"] = f'cmake --build "{build_dir}" --target {target}'
+        else:
+            hints["cmake_configure"] = f'cmake -S "{root}" -B "{root / "build"}"'
+
+        flash_target = cmake_info.get("flash_target")
+        if build_dir and flash_target:
+            hints["openocd_flash"] = f'cmake --build "{build_dir}" --target {flash_target}'
+        elif cmake_info["openocd_configs"] and openocd_flash_outputs:
+            hints["openocd_flash"] = f'openocd -f "{cmake_info["openocd_configs"][0]}" -c "program \\"{openocd_flash_outputs[0]}\\" verify reset exit"'
     return hints
 
 
@@ -221,6 +305,98 @@ def describe_target_config(path: Path) -> str:
     return "unknown"
 
 
+def top_source_dirs(sources: list[Path], root: Path) -> list[str]:
+    dirs: set[str] = set()
+    for source in sources:
+        parts = source.relative_to(root).parts
+        if len(parts) > 1:
+            dirs.add(parts[0])
+    return sorted(dirs)
+
+
+def detect_framework_info(root: Path, sources: list[Path]) -> dict[str, object]:
+    top_dirs = top_source_dirs(sources, root)
+    framework_dirs = sorted(name for name in top_dirs if name.lower() in FRAMEWORK_DIR_NAMES)
+    source_dirs = sorted({str(source.parent.relative_to(root)) for source in sources})
+    is_framework = len(framework_dirs) >= 2 or len(source_dirs) >= 4 or len(sources) >= 12
+
+    if not sources:
+        style = "unknown"
+    elif is_framework:
+        style = "framework_multi_module"
+    elif len(sources) <= 3:
+        style = "simple_single_app"
+    else:
+        style = "simple_multi_file"
+
+    return {
+        "style": style,
+        "top_source_dirs": top_dirs,
+        "framework_dirs": framework_dirs,
+        "source_count": len(sources),
+    }
+
+
+def detect_rtos_info(root: Path, sources: list[Path]) -> dict[str, object]:
+    freertos_files = [p for p in iter_files(root) if p.name in {"FreeRTOSConfig.h", "FreeRTOS.h", "task.h"} and not is_build_path(p, root)]
+    freertos_sources: list[str] = []
+    for source in sources:
+        if source.suffix.lower() not in {".c", ".h", ".cc", ".cpp", ".hpp"}:
+            continue
+        text = read_text(source)
+        if "FreeRTOS.h" in text or "task.h" in text or "xTaskCreate" in text or "vTaskStartScheduler" in text:
+            freertos_sources.append(rel(source, root))
+            if len(freertos_sources) >= 5:
+                break
+
+    detected = bool(freertos_files or freertos_sources)
+    return {
+        "detected": detected,
+        "kind": "FreeRTOS" if detected else "",
+        "files": [rel(p, root) for p in freertos_files[:8]],
+        "source_mentions": freertos_sources,
+    }
+
+
+def detect_cmake_info(root: Path) -> dict[str, object]:
+    cmake_files = find_cmake_files(root)
+    build_dirs = find_build_dirs(root)
+    openocd_configs = find_openocd_configs(root)
+    root_cmake = root / "CMakeLists.txt"
+    text = read_text(root_cmake) if root_cmake.exists() else ""
+
+    target = ""
+    project_match = re.search(r"project\(\s*\$\{?CMAKE_PROJECT_NAME\}?", text)
+    if project_match:
+        name_match = re.search(r"set\(\s*CMAKE_PROJECT_NAME\s+([A-Za-z0-9_.-]+)\s*\)", text)
+        if name_match:
+            target = name_match.group(1)
+    if not target:
+        add_exe = re.search(r"add_executable\(\s*([A-Za-z0-9_.-]+)", text)
+        if add_exe:
+            target = add_exe.group(1)
+
+    flash_target = ""
+    flash_match = re.search(r"add_custom_target\(\s*([A-Za-z0-9_.-]*flash[A-Za-z0-9_.-]*)", text, flags=re.IGNORECASE)
+    if flash_match:
+        flash_target = flash_match.group(1)
+
+    uses_gcc = "arm-none-eabi" in text or "CMAKE_C_COMPILER" in text
+    uses_openocd = "openocd" in text.lower() or bool(openocd_configs)
+
+    return {
+        "has_cmake": bool(cmake_files),
+        "cmake_files": [rel(p, root) for p in cmake_files],
+        "build_dirs": [rel(p, root) for p in build_dirs],
+        "build_dir": build_dirs[0] if build_dirs else None,
+        "target": target,
+        "flash_target": flash_target,
+        "uses_gcc": uses_gcc,
+        "uses_openocd": uses_openocd,
+        "openocd_configs": [rel(p, root) for p in openocd_configs],
+    }
+
+
 def check_project(root: Path) -> tuple[list[Message], dict[str, object]]:
     messages: list[Message] = []
     details: dict[str, object] = {}
@@ -228,6 +404,35 @@ def check_project(root: Path) -> tuple[list[Message], dict[str, object]]:
     syscfg_files = find_syscfg_files(root)
     details["syscfg_files"] = [rel(p, root) for p in syscfg_files]
     keil_projects = find_keil_projects(root)
+    source_files = find_source_files(root)
+    framework_info = detect_framework_info(root, source_files)
+    rtos_info = detect_rtos_info(root, source_files)
+    cmake_info = detect_cmake_info(root)
+
+    details["project_style"] = framework_info
+    details["rtos"] = rtos_info
+    details["cmake"] = {
+        key: (str(value) if isinstance(value, Path) else value)
+        for key, value in cmake_info.items()
+    }
+
+    if framework_info["style"] == "framework_multi_module":
+        dirs = ", ".join(framework_info["framework_dirs"][:8]) or ", ".join(framework_info["top_source_dirs"][:8])
+        messages.append(Message("info", f"项目结构：framework_multi_module，发现多层源码目录 {dirs}；修改前应先确认 app/BSP/driver/core 等模块边界。"))
+    elif framework_info["style"] in {"simple_single_app", "simple_multi_file"}:
+        messages.append(Message("info", f"项目结构：{framework_info['style']}。"))
+
+    if rtos_info["detected"]:
+        messages.append(Message("info", "检测到 FreeRTOS 线索；新增外设逻辑时应确认任务、队列、中断和阻塞调用边界。"))
+
+    if cmake_info["has_cmake"]:
+        messages.append(Message("info", "发现 CMake 工程；应通过 CMake/GCC 或项目指定工具链构建，而不是假定 CCS/Keil。"))
+        if cmake_info["uses_gcc"]:
+            messages.append(Message("info", "CMake 配置包含 arm-none-eabi/GCC 工具链线索。"))
+        if cmake_info["uses_openocd"]:
+            configs = ", ".join(cmake_info["openocd_configs"][:5])
+            suffix = f"：{configs}" if configs else ""
+            messages.append(Message("info", f"发现 OpenOCD 配置或烧录目标{suffix}。MSPM0 通常需要 TI 扩展分支 OpenOCD。"))
     if not syscfg_files:
         messages.append(Message("error", "没有找到 .syscfg 文件。"))
     elif len(syscfg_files) > 1:
@@ -292,7 +497,7 @@ def check_project(root: Path) -> tuple[list[Message], dict[str, object]]:
     header_init_names = parse_header_init_names(headers)
     details["header_init_names"] = sorted(header_init_names)
 
-    source_calls = parse_source_init_calls(find_source_files(root))
+    source_calls = parse_source_init_calls(source_files)
     details["source_init_calls"] = {rel(Path(k), root): v for k, v in source_calls.items()}
     called_names = {name for names in source_calls.values() for name in names}
 
@@ -321,15 +526,17 @@ def check_project(root: Path) -> tuple[list[Message], dict[str, object]]:
             messages.append(Message("warning", "Debug/makefile 同时引用 ../device_linker.cmd 和 ./device_linker.cmd；这可能导致 gmake clean all 失败或重复链接 linker cmd。优先让 CCS 重新生成构建文件，临时 CLI 验证时避免重复输入。", "Debug/makefile"))
     if keil_projects:
         messages.append(Message("info", f"发现 Keil/uVision 工程：{rel(keil_projects[0], root)}。请检查 .uvprojx、Objects/ 和 Listings/。", rel(keil_projects[0], root)))
-    if not has_ccs_build and not keil_projects:
+    if not has_ccs_build and not keil_projects and not cmake_info["has_cmake"]:
         messages.append(Message("warning", "Debug 构建文件不完整；新建工程通常需要先在 CCS/CCS Theia 编译一次，或使用 CCS 命令行构建生成 makefile。", "Debug"))
+    elif cmake_info["has_cmake"] and not has_ccs_build and not keil_projects:
+        messages.append(Message("info", "未发现 CCS Debug 构建文件；当前更像 CMake 工程，请使用 CMake 构建目录和目标。"))
 
     outputs = find_output_files(root)
     details["output_files"] = [rel(p, root) for p in outputs]
     if outputs:
         messages.append(Message("ok", f"发现可烧录输出文件：{rel(outputs[0], root)}。", rel(outputs[0], root)))
     else:
-        messages.append(Message("warning", "未发现可烧录输出文件（.out/.axf/.hex）；烧录前需要先成功构建工程。"))
+        messages.append(Message("warning", "未发现可烧录输出文件（.out/.axf/.elf/.hex/.bin）；烧录前需要先成功构建工程。"))
 
     ccxmls = find_target_configs(root)
     keil_projects = find_keil_projects(root)
@@ -343,8 +550,10 @@ def check_project(root: Path) -> tuple[list[Message], dict[str, object]]:
         messages.append(Message("info", "未发现 targetConfigs/*.ccxml；当前是 Keil 工程，通常通过 `.uvprojx` 和 Keil 调试器配置来验证。"))
     elif keil_projects:
         messages.append(Message("info", "同时发现 Keil/uVision 工程；如果当前使用 Keil 工作流，请确认 `.uvprojx` 和 Keil 调试器配置。"))
-    if not ccxmls and not keil_projects:
+    if not ccxmls and not keil_projects and not cmake_info["uses_openocd"]:
         messages.append(Message("warning", "未发现 targetConfigs/*.ccxml；DSLite 烧录需要目标配置文件。"))
+    elif cmake_info["uses_openocd"] and not ccxmls:
+        messages.append(Message("info", "未发现 targetConfigs/*.ccxml；当前更像 OpenOCD 烧录路径，不需要 CCS targetConfigs。"))
 
     details["validation_hints"] = find_validation_hints(root)
     return messages, details
@@ -360,7 +569,7 @@ def print_text(root: Path, messages: list[Message], details: dict[str, object]) 
     if isinstance(hints, dict) and hints:
         print()
         print("Suggested CLI validation chain:")
-        for key in ("sysconfig_cli", "gmake", "keil_build", "list_debug_cores", "flash"):
+        for key in ("sysconfig_cli", "gmake", "cmake_configure", "cmake_build", "keil_build", "list_debug_cores", "flash", "openocd_flash"):
             if key in hints:
                 print(f"- {key}: {hints[key]}")
 

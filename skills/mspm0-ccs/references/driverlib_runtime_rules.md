@@ -42,6 +42,15 @@ Interrupt handlers should:
 
 Avoid long delays, blocking serial I/O, complex parsing, slow bus transactions, and heavy control logic inside ISRs.
 
+## FreeRTOS Projects
+
+If a project includes `FreeRTOSConfig.h`, `FreeRTOS.h`, `task.h`, `xTaskCreate`, or `vTaskStartScheduler`, first map the existing task/ISR boundaries.
+
+- Do not add blocking DriverLib calls to an ISR.
+- Do not replace an existing queue, notification, semaphore, or task-delay pattern without a clear reason.
+- Confirm whether a requested control period belongs in a hardware timer interrupt, RTOS task delay, PWM/ADC trigger chain, or main loop.
+- Keep changes compatible with the project's existing framework rather than assuming a single-file demo layout.
+
 ## Clock And Delay Rules
 
 For the verified Tianmengxing MSPM0G3507 80 MHz pattern:

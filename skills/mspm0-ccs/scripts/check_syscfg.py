@@ -35,6 +35,17 @@ FRAMEWORK_DIR_NAMES = {
     "user",
 }
 OPENOCD_CONFIG_NAMES = {"daplink.cfg", "stlink.cfg", "xds110.cfg"}
+OPENOCD_CONTENT_PATTERNS = (
+    r"\bsource\s+\[find\s+",
+    r"\btransport\s+select\s+",
+    r"\badapter\s+(?:speed|driver|serial)\b",
+    r"\binterface\s+",
+    r"\bsource\s+.*(?:interface|target|board)/",
+    r"\btarget\s+create\s+",
+    r"\bflash\s+bank\s+",
+    r"\breset_config\b",
+    r"\bprogram\s+.+(?:verify|reset|exit)",
+)
 
 
 @dataclass
@@ -82,12 +93,17 @@ def find_keil_projects(root: Path) -> list[Path]:
 
 
 def find_cmake_files(root: Path) -> list[Path]:
-    return sorted(p for p in iter_files(root) if p.name == "CMakeLists.txt" and not is_build_path(p, root))
+    root_cmake = root / "CMakeLists.txt"
+    return [root_cmake] if root_cmake.exists() else []
 
 
 def find_openocd_configs(root: Path) -> list[Path]:
-    configs = [p for p in iter_files(root) if p.suffix.lower() == ".cfg" and not is_build_path(p, root)]
-    return sorted(configs, key=lambda p: (p.name not in OPENOCD_CONFIG_NAMES, rel(p, root).lower()))
+    configs = [
+        p
+        for p in iter_files(root)
+        if p.suffix.lower() == ".cfg" and not is_build_path(p, root) and is_openocd_config(p)
+    ]
+    return sorted(configs, key=lambda p: (p.name.lower() not in OPENOCD_CONFIG_NAMES, rel(p, root).lower()))
 
 
 def find_source_files(root: Path) -> list[Path]:
@@ -128,6 +144,14 @@ def find_build_dirs(root: Path) -> list[Path]:
         if child.name in BUILD_DIRS or child.name.startswith(CMAKE_BUILD_PREFIXES):
             build_dirs.append(child)
     return sorted(build_dirs)
+
+
+def is_openocd_config(path: Path) -> bool:
+    name = path.name.lower()
+    text = read_text(path)
+    if name in OPENOCD_CONFIG_NAMES and re.search(r"\b(?:source|transport|adapter|interface|target|reset_config|program)\b", text):
+        return True
+    return any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in OPENOCD_CONTENT_PATTERNS)
 
 
 def parse_metadata(text: str) -> dict[str, str | bool]:
@@ -236,11 +260,12 @@ def find_validation_hints(root: Path) -> dict[str, str]:
 
     ccxmls = find_target_configs(root)
     outputs = find_output_files(root)
-    flash_outputs = [p for p in outputs if p.suffix.lower() == ".out"] or outputs
+    dslite_flash_outputs = [p for p in outputs if p.suffix.lower() == ".out"] or outputs
+    openocd_flash_outputs = [p for p in outputs if p.suffix.lower() in {".elf", ".hex", ".bin"}]
     if ccxmls:
         hints["list_debug_cores"] = f'dslite -c "{ccxmls[0]}" -N'
-    if ccxmls and flash_outputs:
-        hints["flash"] = f'dslite -c "{ccxmls[0]}" -e -r 2 -u "{flash_outputs[0]}"'
+    if ccxmls and dslite_flash_outputs:
+        hints["flash"] = f'dslite -c "{ccxmls[0]}" -e -r 2 -u "{dslite_flash_outputs[0]}"'
 
     keil_projects = find_keil_projects(root)
     if keil_projects:
@@ -258,8 +283,8 @@ def find_validation_hints(root: Path) -> dict[str, str]:
         flash_target = cmake_info.get("flash_target")
         if build_dir and flash_target:
             hints["openocd_flash"] = f'cmake --build "{build_dir}" --target {flash_target}'
-        elif cmake_info["openocd_configs"] and outputs:
-            hints["openocd_flash"] = f'openocd -f "{cmake_info["openocd_configs"][0]}" -c "program {outputs[0]} verify reset exit"'
+        elif cmake_info["openocd_configs"] and openocd_flash_outputs:
+            hints["openocd_flash"] = f'openocd -f "{cmake_info["openocd_configs"][0]}" -c "program \\"{openocd_flash_outputs[0]}\\" verify reset exit"'
     return hints
 
 

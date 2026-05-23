@@ -1,28 +1,28 @@
 ---
 name: mspm0-ccs
-description: Tool-neutral CLI agent rules for TI MSPM0 development with Code Composer Studio, CCS Theia, SysConfig, and DriverLib. Use when an agent needs to inspect or modify MSPM0 CCS projects, edit .syscfg configuration, avoid generated SysConfig files, use DriverLib APIs, validate SysConfig output, package reusable MSPM0 examples, or work on NUEDC-style MSPM0 embedded firmware.
+description: Tool-neutral CLI agent rules for TI MSPM0 development with Code Composer Studio, Keil/uVision, SysConfig, and DriverLib. Use when an agent needs to inspect or modify MSPM0 projects, edit .syscfg configuration, avoid generated SysConfig/build files, use DriverLib APIs, validate SysConfig output, package reusable MSPM0 examples, or work on NUEDC-style MSPM0 embedded firmware.
 ---
 
 # MSPM0 CCS Agent Skill
 
-Use this skill for TI MSPM0 firmware projects that use CCS, CCS Theia, SysConfig, and DriverLib. It is intended for Claude Code, OpenCode, OpenClaw, Continue, Cursor, Codex, and similar CLI/editor agents.
+Use this skill for TI MSPM0 firmware projects that use CCS, CCS Theia, Keil/uVision, SysConfig, and DriverLib. It is intended for Claude Code, OpenCode, OpenClaw, Continue, Cursor, Codex, and similar CLI/editor agents.
 
 ## Default Workflow
 
-1. Locate the project `.syscfg`, editable source files, generated `ti_msp_dl_config.h`, and `targetConfigs/*.ccxml`.
+1. Locate the project `.syscfg` or `system.syscfg`, editable source files, generated `ti_msp_dl_config.h`, and the IDE project entrypoint in use (`targetConfigs/*.ccxml` for CCS, `keil/*.uvprojx` plus `keil/*.uvoptx` / `mspm0g3507.sct` for Keil/uVision).
 2. Run `python scripts/check_syscfg.py <project-dir>` when this skill is available.
 3. Read `.syscfg` metadata: device, package, SDK product, SysConfig version, modules, instances, pins, clocks, and interrupts.
 4. Inspect generated `ti_msp_dl_config.h` for macro names, IRQ names, instance names, and the exact SysConfig init function spelling.
 5. Before adding unfamiliar SysConfig fields, inspect the user's existing `.syscfg`, `examples/*/manifest.json`, TI SDK examples, or `source/ti/driverlib/.meta/*.syscfg.js`.
 6. Modify the smallest relevant `.syscfg` and application-code surface.
-7. Regenerate SysConfig output or rebuild through CCS-generated makefiles.
+7. Regenerate SysConfig output or rebuild through the active IDE's generated build flow.
 8. If flashing, confirm the `.ccxml` debug probe matches the connected hardware and prefer a System Reset after programming.
 
 ## Core Rules
 
 - Treat `.syscfg` as the source of truth for pinmux, peripheral setup, clocks, interrupts, DMA ownership, and generated initialization.
 - Prefer SysConfig + DriverLib for GPIO, UART, PWM, Timer, ADC, I2C, SPI, DMA, and clock setup.
-- Do not hand-edit generated outputs such as `Debug/ti_msp_dl_config.c`, `Debug/ti_msp_dl_config.h`, `device_linker.cmd`, object files, maps, or `.out` files.
+- Do not hand-edit generated outputs such as `Debug/ti_msp_dl_config.c`, `Debug/ti_msp_dl_config.h`, the project-root `ti_msp_dl_config.c` / `ti_msp_dl_config.h` pair in Keil layouts, `device_linker.cmd`, `Objects/`, `Listings/`, object files, maps, or `.out` files.
 - Preserve `.syscfg` metadata such as `@cliArgs`, `@v2CliArgs`, `@versions`, `--device`, `--package`, and `--product`.
 - Do not guess generated names. Read `ti_msp_dl_config.h` and use the local macros and the local init function spelling, such as `SYSCFG_DL_init()`.
 - Do not invent SysConfig fields, enum values, device metadata, board names, package names, or tool versions. Validate against local examples, SDK metadata, or SysConfig CLI.
@@ -30,6 +30,12 @@ Use this skill for TI MSPM0 firmware projects that use CCS, CCS Theia, SysConfig
 - Do not change device, package, SDK, compiler, CCS version, board, or debug probe without user confirmation.
 - If SysConfig emits warnings, report them separately from build/flash success. Do not call a warning-producing generation "clean".
 - If hardware behavior is not verified on a connected board, say that validation stopped at source, SysConfig, or build level.
+
+## Project Reality Checks For Keil Projects
+
+- Treat `system.syscfg` and `ti_msp_dl_config.c` / `ti_msp_dl_config.h` as the configuration source surface for Keil-based MSPM0 projects that keep SysConfig outputs at the project root.
+- Treat a Keil `.uvprojx` as the project entrypoint, the scatter file as the linker source of truth, and `Objects/`, `Listings/`, `*.uvoptx`, build logs, and generated outputs as inspection-only unless a request explicitly targets them.
+- For a project's application code, follow its own source layout rather than assuming CCS defaults.
 
 ## Ambiguous Requests
 
@@ -54,7 +60,7 @@ When asked to drive an external module, sensor, motor driver, servo, display, ra
 
 Read references only when needed:
 
-- `references/sysconfig_ccs_workflow.md`: `.syscfg` editing, CCS project layout, SysConfig CLI, gmake, DSLite/J-Link, and OpenOCD placeholder.
+- `references/sysconfig_ccs_workflow.md`: `.syscfg` editing, CCS / Keil project layout, SysConfig CLI, gmake, DSLite/J-Link, and OpenOCD placeholder.
 - `references/driverlib_runtime_rules.md`: DriverLib usage, interrupts, clock tree, delays, and common runtime mistakes.
 - `references/sdk_schema_lookup.md`: how to find official SysConfig fields and examples in the local MSPM0 SDK.
 - `references/hardware_validation_notes.md`: verified Tianmengxing MSPM0G3507 lessons, HFXT warnings, flash/reset behavior, and real-board caveats.

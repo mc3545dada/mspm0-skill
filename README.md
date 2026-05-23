@@ -12,6 +12,7 @@
 * **调试辅助**：串口数据接收、`.syscfg` / 工程文件自动检查
 * **例程管理**：无现成例程时自动查找官方例程文件
 * **参数调优**：电机/舵机等结构的自动调参和逻辑优化
+* **模块驱动**：提供某个模块的手册并要求Agents驱动/设计算法等
 * **个性化定制**：可以要求Agents把自己的项目融合进Skill
 
 ## 目录结构
@@ -109,7 +110,7 @@ skills/mspm0-ccs/
 
 ## 已验证环境
 
-目前已实机验证的组合是：
+我目前使用的组合是：
 
 - 开发板：立创天猛星 MSPM0G3507
 - 开发环境：CCS / CCS Theia
@@ -118,12 +119,9 @@ skills/mspm0-ccs/
 - 编译器：TI Arm Clang 4.0.3 LTS
 - 烧录器：J-Link
 - 烧录工具：UniFlash / DSLite
-- 验证外设：PB22 板载 LED、UART0 阻塞发送
-- 已验证时钟：80MHz CPUCLK，MFCLK 4MHz
+- 验证外设：PB22 板载 LED、UART0 阻塞发送等
 
-另外已在一个 CMake + Arm GNU Toolchain + OpenOCD 的 MSPM0G3507 框架项目上验证过静态检查和完整编译链路。因为当时未连接开发板，OpenOCD 烧录只验证到“能进入项目 flash target，并在未连接探针时正确报 CMSIS-DAP 未找到”。
-
-其他开发板、芯片封装、SDK/CCS/Keil/CMake 版本、调试器或烧录方式可能也能使用本项目规则，但尚未百分百确认。迁移到其他组合时，应先运行静态检查和最小外设验证。
+其他开发板、芯片封装、SDK/CCS/Keil/CMake 版本、调试器或烧录方式可能也能使用本项目规则，简单测试发现同样支持Keil+Syscfg环境,CMake+OpenOCD工具链等，但尚未百分百确认。迁移到其他组合时，应先运行静态检查和最小外设验证。
 
 ## 使用方式
 
@@ -141,7 +139,7 @@ skills/mspm0-ccs/
 安装后，在 MSPM0 工程里可以这样要求 Agent：
 
 ```text
-请使用 mspm0-ccs skill，先检查当前工程的 `system.syscfg`、Keil `*.uvprojx` 和 `ti_msp_dl_config.h`，
+请使用 mspm0-ccs skill，先检查当前工程的 `system.syscfg`和 `ti_msp_dl_config.h`，
 然后帮我安全地配置天猛星 PB22 板载 LED。
 ```
 

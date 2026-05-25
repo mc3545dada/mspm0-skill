@@ -264,7 +264,7 @@ def find_validation_hints(root: Path) -> dict[str, str]:
     openocd_flash_outputs = [p for p in outputs if p.suffix.lower() in {".elf", ".hex", ".bin"}]
     if ccxmls:
         hints["list_debug_cores"] = f'dslite -c "{ccxmls[0]}" -N'
-        dss_script = Path(__file__).with_name("ccs_dss_debug.py")
+        dss_script = Path(__file__).resolve().with_name("ccs_dss_debug.py")
         hints["ccs_dss_probe"] = f'python "{dss_script}" "{root}" probe --leave-running'
     if ccxmls and dslite_flash_outputs:
         hints["flash"] = f'dslite -c "{ccxmls[0]}" -e -r 2 -u "{dslite_flash_outputs[0]}"'

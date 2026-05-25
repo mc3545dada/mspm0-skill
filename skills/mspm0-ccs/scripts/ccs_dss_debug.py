@@ -139,6 +139,7 @@ def js_finally(leave_running: bool = False) -> str:
     emit({event:"left_target_running"});
   } catch (err) {
     emit({event:"run_error", error:String(err)});
+    throw err;
   }
 """
     return f"""
@@ -295,8 +296,11 @@ def run_js(run_bat: Path, js_text: str, keep_js: bool, process_timeout_ms: int |
         if keep_js:
             print(json.dumps({"event": "script_file", "path": str(temp_path)}), flush=True)
         timeout_s = None if process_timeout_ms is None else process_timeout_ms / 1000
+        command = [str(run_bat), str(temp_path)]
+        if os.name == "nt":
+            command = ["cmd", "/d", "/c", str(run_bat), str(temp_path)]
         try:
-            result = subprocess.run([str(run_bat), str(temp_path)], text=True, timeout=timeout_s)
+            result = subprocess.run(command, text=True, timeout=timeout_s)
         except subprocess.TimeoutExpired:
             print(
                 json.dumps({"event": "process_timeout", "timeout_ms": process_timeout_ms, "script": str(temp_path)}),

@@ -17,6 +17,12 @@ Validated combination:
 
 Other boards, packages, SDK versions, CCS versions, probes, and pin maps may work, but they are not guaranteed by these notes.
 
+## Tianmengxing Special Pin Caution
+
+The LCKFB Tianmengxing documentation marks A21, A23, A02, A18, A10, and A11 as special pins and says they should not be used unless necessary. In SysConfig or generated headers these may appear as PA21, PA23, PA02, PA18, PA10, and PA11.
+
+When the user asks the agent to choose pins for normal GPIO, PWM, UART, SPI, I2C, timer capture, or similar tasks on Tianmengxing, prefer other available pins first. If the user explicitly requests one of these pins, or an existing project already uses one, warn about the board note before changing or depending on it.
+
 ## PB22 LED Lessons
 
 The LCKFB Tianmengxing onboard LED uses PB22. A verified GPIO blink used generated names similar to:

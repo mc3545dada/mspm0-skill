@@ -31,6 +31,14 @@ Use this skill for TI MSPM0 firmware projects that use SysConfig and DriverLib t
 - If SysConfig emits warnings, report them separately from build/flash success. Do not call a warning-producing generation "clean".
 - If hardware behavior is not verified on a connected board, say that validation stopped at source, SysConfig, or build level.
 
+## Board-Specific Pin Caution
+
+When the user explicitly says the board is LCKFB Tianmengxing MSPM0G3507:
+
+- Avoid choosing A21/PA21, A23/PA23, A02/PA02, A18/PA18, A10/PA10, and A11/PA11 for ordinary user-requested pin assignments unless the user asks for those pins or the local project already deliberately uses them.
+- If the user asks to drive or reuse one of those pins, remind them that the Tianmengxing documentation marks these as special pins and says they should not be used unless necessary.
+- Do not silently move an existing project away from these pins. Explain the board caveat first, then ask or proceed according to the user's intent.
+
 ## Project Shape Checks
 
 - Simple projects usually keep most logic in `main.c`, `empty.c`, or a small number of files. It is acceptable to make narrowly scoped edits there.

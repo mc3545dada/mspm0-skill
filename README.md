@@ -2,7 +2,7 @@
 
 面向 TI MSPM0 +  SysConfig + DriverLib 的 AI 编程助手 skill 包。
 
-本项目主要服务于国内 MSPM0 开发、电赛备赛和 TI官方开发板/立创天猛星等 MSPM0G3507 使用场景，帮助 Claude Code、OpenCode、OpenClaw、Continue、Cursor、Codex 等 CLI / 编辑器 Agent 更安全地理解和修改 MSPM0 工程。它也补充了对常见 Keil/uVision、CMake + GCC + OpenOCD 工程布局的适配说明。
+本项目主要服务于国内 MSPM0 开发、电赛备赛和 TI官方开发板/立创天猛星等 MSPM0G3507 使用场景，帮助 Claude Code、OpenCode、OpenClaw、Continue、Cursor、Codex 等 CLI / 编辑器 Agent 更安全地理解和修改、调试 MSPM0 工程。支持MSPM0 + CCS-TI Arm Clang + SysConfig工作流，同时它也补充了对常见 Keil/uVision、CMake + GCC + OpenOCD 工程布局的适配说明。
 
 
 ## 主要功能
@@ -123,7 +123,7 @@ skills/mspm0-ccs/
 - 烧录工具：UniFlash / DSLite
 - 验证外设：PB22 板载 LED、UART0 阻塞发送等
 
-其他开发板、芯片封装、SDK/CCS/Keil/CMake 版本、调试器或烧录方式可能也能使用本项目规则，简单测试发现同样支持Keil+Syscfg环境,CMake+OpenOCD工具链等，但尚未百分百确认。迁移到其他组合时，应先运行静态检查和最小外设验证。
+其他开发板、芯片封装、SDK/CCS/Keil/CMake 版本、调试器或烧录方式可能也能使用本项目规则，简单测试发现同样支持Keil + Syscfg环境,CMake + GCC + OpenOCD工具链等，但尚未百分百确认。迁移到其他组合时，应先运行静态检查和最小外设验证。
 
 ## 使用方式
 

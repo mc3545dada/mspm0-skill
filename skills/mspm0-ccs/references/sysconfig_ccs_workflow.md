@@ -120,6 +120,19 @@ Use `-r 2 -u` for automated flashing after clock-tree changes. This performs a S
 
 If `dslite -N` hangs or cannot list the core, stop stale CCS/DSLite/J-Link sessions, reconnect if needed, and retry detection before erase/program operations.
 
+## CCS-DSS Debug
+
+For interactive debug actions on CCS / CCS Theia projects, use the CCS Debug Server Scripting backend described in `ccs_dss_debug.md`:
+
+```powershell
+python scripts\ccs_dss_debug.py <project-dir> probe --leave-running
+python scripts\ccs_dss_debug.py <project-dir> run-to-symbol --symbol main --load --reset "System Reset"
+```
+
+This path uses `targetConfigs/*.ccxml`, so it follows the probe configured by the CCS project. It is not inherently limited to J-Link, but the `.ccxml` must match the connected probe such as J-Link or XDS110.
+
+Keep this separate from OpenOCD/GDB debugging. A future OpenOCD debug flow should use an explicit OpenOCD/GDB backend rather than this CCS-DSS wrapper.
+
 ## OpenOCD Flash
 
 Use the project-provided OpenOCD target when available. Otherwise the explicit shape is:

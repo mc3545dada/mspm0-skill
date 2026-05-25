@@ -264,8 +264,13 @@ def find_validation_hints(root: Path) -> dict[str, str]:
     openocd_flash_outputs = [p for p in outputs if p.suffix.lower() in {".elf", ".hex", ".bin"}]
     if ccxmls:
         hints["list_debug_cores"] = f'dslite -c "{ccxmls[0]}" -N'
+        dss_script = Path(__file__).resolve().with_name("ccs_dss_debug.py")
+        hints["ccs_dss_probe"] = f'python "{dss_script}" "{root}" probe --leave-running'
     if ccxmls and dslite_flash_outputs:
         hints["flash"] = f'dslite -c "{ccxmls[0]}" -e -r 2 -u "{dslite_flash_outputs[0]}"'
+        hints["ccs_dss_run_to_main"] = (
+            f'python "{dss_script}" "{root}" run-to-symbol --symbol main --load --reset "System Reset"'
+        )
 
     keil_projects = find_keil_projects(root)
     if keil_projects:
@@ -569,7 +574,18 @@ def print_text(root: Path, messages: list[Message], details: dict[str, object]) 
     if isinstance(hints, dict) and hints:
         print()
         print("Suggested CLI validation chain:")
-        for key in ("sysconfig_cli", "gmake", "cmake_configure", "cmake_build", "keil_build", "list_debug_cores", "flash", "openocd_flash"):
+        for key in (
+            "sysconfig_cli",
+            "gmake",
+            "cmake_configure",
+            "cmake_build",
+            "keil_build",
+            "list_debug_cores",
+            "ccs_dss_probe",
+            "flash",
+            "ccs_dss_run_to_main",
+            "openocd_flash",
+        ):
             if key in hints:
                 print(f"- {key}: {hints[key]}")
 

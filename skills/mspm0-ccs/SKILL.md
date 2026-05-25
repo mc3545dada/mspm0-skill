@@ -16,7 +16,7 @@ Use this skill for TI MSPM0 firmware projects that use SysConfig and DriverLib t
 5. Before adding unfamiliar SysConfig fields, inspect the user's existing `.syscfg`, `examples/*/manifest.json`, TI SDK examples, or `source/ti/driverlib/.meta/*.syscfg.js`.
 6. Modify the smallest relevant `.syscfg` and application-code surface.
 7. Regenerate SysConfig output or rebuild through the active toolchain's generated build flow.
-8. If flashing, confirm the configured probe backend matches the connected hardware and prefer a System Reset after programming.
+8. If flashing or debugging, confirm the configured probe backend matches the connected hardware and prefer a System Reset after programming.
 
 ## Core Rules
 
@@ -30,6 +30,14 @@ Use this skill for TI MSPM0 firmware projects that use SysConfig and DriverLib t
 - Do not change device, package, SDK, compiler, CCS version, board, or debug probe without user confirmation.
 - If SysConfig emits warnings, report them separately from build/flash success. Do not call a warning-producing generation "clean".
 - If hardware behavior is not verified on a connected board, say that validation stopped at source, SysConfig, or build level.
+
+## Board-Specific Pin Caution
+
+When the user explicitly says the board is LCKFB Tianmengxing MSPM0G3507:
+
+- Avoid choosing A21/PA21, A23/PA23, A02/PA02, A18/PA18, A10/PA10, and A11/PA11 for ordinary user-requested pin assignments unless the user asks for those pins or the local project already deliberately uses them.
+- If the user asks to drive or reuse one of those pins, remind them that the Tianmengxing documentation marks these as special pins and says they should not be used unless necessary.
+- Do not silently move an existing project away from these pins. Explain the board caveat first, then ask or proceed according to the user's intent.
 
 ## Project Shape Checks
 
@@ -83,6 +91,7 @@ Read references only when needed:
 - `references/driverlib_runtime_rules.md`: DriverLib usage, interrupts, clock tree, delays, and common runtime mistakes.
 - `references/sdk_schema_lookup.md`: how to find official SysConfig fields and examples in the local MSPM0 SDK.
 - `references/hardware_validation_notes.md`: verified Tianmengxing MSPM0G3507 lessons, HFXT warnings, flash/reset behavior, and real-board caveats.
+- `references/ccs_dss_debug.md`: CCS Debug Server Scripting (`ccs-dss`) debug workflow, breakpoints, register reads, and current limitations.
 
 Use `examples/` as the main source for reusable tested patterns. Prefer `scripts/list_examples.py` to inspect available examples before opening individual example files.
 
@@ -108,6 +117,7 @@ Do not require users to drop full CCS projects into `examples/`. Use `scripts/ca
 - `python scripts/capture_example.py <project-dir> --name <example-name> --include <glob>`: package selected source files and `.syscfg` from a user project into `examples/<example-name>/`.
 - `python scripts/index_syscfg_examples.py <mspm0-sdk-root> --board LP_MSPM0G3507 --module UART`: search local TI SDK examples and module metadata.
 - `python scripts/serial_console.py --list`: list serial ports.
+- `python scripts/ccs_dss_debug.py <project-dir> probe --leave-running`: connect through CCS Debug Server Scripting, read reset/register state, verify the configured `.ccxml` debug path, and continue the target before disconnecting.
 
 For the verified CH340 setup, use `python scripts/serial_console.py -p COM6 -b 115200 --timestamp --duration 10` after closing other serial tools such as VOFA+.
 
@@ -120,3 +130,16 @@ dslite -c <target.ccxml> -e -r 2 -u <project.out>
 ```
 
 For CMake/GCC/OpenOCD projects, use the project's existing flash target or explicit OpenOCD config. Keep the backend explicit and report probe-discovery errors separately from build success.
+
+## Debug Backends
+
+The currently packaged automated debug helper is the CCS Debug Server Scripting backend (`ccs-dss`):
+
+```text
+python scripts/ccs_dss_debug.py <project-dir> probe --leave-running
+python scripts/ccs_dss_debug.py <project-dir> run-to-symbol --symbol main --load --reset "System Reset"
+```
+
+Use it only for CCS / CCS Theia / UniFlash-style projects with a valid `targetConfigs/*.ccxml`. The physical probe is selected by `.ccxml`, so the backend is not inherently J-Link-only; it can also work with CCS-supported probes such as XDS110 when the project configuration matches the hardware.
+
+Do not treat `ccs-dss` as the OpenOCD path. For CMake/GCC/OpenOCD projects, keep future debugging under a separate `openocd-gdb` backend. Debug actions can halt the CPU, so report that risk before using breakpoints or register inspection on real-time control hardware.

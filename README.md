@@ -9,7 +9,7 @@
 ### 提供对 MSPM0 + SysConfig/DriverLib 工程的支持，使 AI Agent:
 * **引脚配置**：通过 CLI 修改 `.syscfg` 文件初始化外设引脚
 * **代码修改**：修改底层/应用层逻辑，自动编译并烧录到开发板
-* **调试辅助**：串口数据接收、`.syscfg` / 工程文件自动检查
+* **调试辅助**：串口数据接收、自动断点调试、`.syscfg` / 工程文件自动检查
 * **例程管理**：无现成例程时自动查找官方例程文件
 * **参数调优**：电机/舵机等结构的自动调参和逻辑优化
 * **模块驱动**：提供某个模块的手册并要求Agents驱动/设计算法等
@@ -87,13 +87,15 @@ skills/mspm0-ccs/
 │  ├─ sysconfig_ccs_workflow.md
 │  ├─ driverlib_runtime_rules.md
 │  ├─ sdk_schema_lookup.md
-│  └─ hardware_validation_notes.md
+│  ├─ hardware_validation_notes.md
+│  └─ ccs_dss_debug.md
 ├─ scripts/
 │  ├─ capture_example.py
 │  ├─ check_syscfg.py
 │  ├─ list_examples.py
 │  ├─ serial_console.py
-│  └─ index_syscfg_examples.py
+│  ├─ index_syscfg_examples.py
+│  └─ ccs_dss_debug.py
 ├─ assets/
 │  ├─ snippets/
 │  │  ├─ clock_80mhz_mfclk.syscfg.md
@@ -193,6 +195,13 @@ python skills\mspm0-ccs\scripts\serial_console.py --list
 python skills\mspm0-ccs\scripts\serial_console.py -p COM6 -b 115200 --timestamp --duration 10
 ```
 
+CCS-DSS 调试链路测试（仅适用于 CCS / CCS Theia / UniFlash Debug Server Scripting 这条线，不是 OpenOCD/GDB）：
+
+```powershell
+python skills\mspm0-ccs\scripts\ccs_dss_debug.py C:\Users\3545\workspace_ccstheia\26testproject2 probe --leave-running
+python skills\mspm0-ccs\scripts\ccs_dss_debug.py C:\Users\3545\workspace_ccstheia\26testproject2 run-to-symbol --symbol main --load --reset "System Reset"
+```
+
 索引本地 TI MSPM0 SDK 的官方 SysConfig 例程和模块 metadata：
 
 ```powershell
@@ -232,6 +241,8 @@ python skills\mspm0-ccs\scripts\capture_example.py C:\Users\3545\workspace_ccsth
 - 新建 Keil/CCS 工程通常需要先手动编译一次，生成对应的工程输出目录与链接文件，例如 `Debug/`、`Objects/`、`Listings/`、`.out` 或 `.axf`。CMake 工程通常需要已有配置好的 build 目录或 preset/toolchain。
 - 烧录前必须确认 CCS 的 `targetConfigs/*.ccxml`、Keil 工程的调试器配置，或 OpenOCD 的 `.cfg` 文件和实际烧录器一致。
 - 自动烧录建议使用 DSLite System Reset：`-e -r 2 -u`。
+- 当前已整理的自动调试辅助是 CCS-DSS 方向：依赖 CCS/CCS Theia/UniFlash 的 Debug Server Scripting 和 `targetConfigs/*.ccxml`。它不只限于 J-Link，理论上也可用于 XDS110 等 CCS 支持的调试器，但必须以 `.ccxml` 和实际硬件一致为前提。
+- CCS-DSS 调试和 OpenOCD/GDB 调试应分开处理；后续如果补 OpenOCD 调试经验，建议作为单独后端记录。
 - OpenOCD 方式需要使用支持 MSPM0 的 TI 扩展分支/构建；`unable to find a matching CMSIS-DAP device` 通常表示没有找到对应调试器，不等于固件编译失败。
 
 ## 例程说明

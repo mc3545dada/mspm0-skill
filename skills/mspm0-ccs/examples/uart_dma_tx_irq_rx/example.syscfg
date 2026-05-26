@@ -54,8 +54,8 @@ SYSCTL.clockTreeEn           = true;
 
 UART1.$name                      = "UART_0";
 UART1.targetBaudRate             = 115200;
-UART1.enabledInterrupts          = ["DMA_DONE_TX"];
 UART1.enabledDMATXTriggers       = "DL_UART_DMA_INTERRUPT_TX";
+UART1.enabledInterrupts          = ["DMA_DONE_TX","RX"];
 UART1.peripheral.rxPin.$assign   = "PA11";
 UART1.peripheral.txPin.$assign   = "PA10";
 UART1.txPinConfig.$name          = "ti_driverlib_gpio_GPIOPinGeneric0";

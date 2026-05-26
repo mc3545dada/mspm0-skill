@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "name": "uart_dma_tx",
-  "title": "UART0 DMA TX",
-  "description": "UART0 115200 8N1 DMA transmit example. Captures the fix for one-shot DMA TX caused by not enabling UART0 NVIC interrupts.",
+  "name": "uart_dma_tx_irq_rx",
+  "title": "UART0 DMA TX + IRQ RX Echo",
+  "description": "Verified UART0 115200 8N1 send/receive smoke-test example for agents: interrupt RX collects newline-terminated frames, DMA TX echoes/debugs responses, and optional ASCII float parsing demonstrates parameter input.",
   "board": "LCKFB Tianmengxing MSPM0G3507",
   "device": "MSPM0G3507",
   "package": "LQFP-64",
@@ -26,8 +26,7 @@
     "UART_0_INST_DMA_TRIGGER",
     "DMA_UART0Tx_CHAN_ID",
     "DL_UART_IIDX_DMA_DONE_TX",
-    "LED_PORT",
-    "LED_PIN_22_PIN"
+    "DL_UART_IIDX_RX"
   ],
   "parameters": {
     "uart": "UART0",
@@ -36,7 +35,10 @@
     "tx_pin": "PA10",
     "rx_pin": "PA11",
     "dma_channel": "DMA_CH0",
-    "dma_trigger": "UART0_TX"
+    "dma_trigger": "UART0_TX",
+    "rx_frame_end": "LF",
+    "echo_protocol": "Send a text line such as ping\\n and the MCU replies over DMA TX.",
+    "float_protocol": "Optional ASCII CSV parsing, for example 1.23,44,55.7\\n"
   },
-  "tags": ["uart", "dma", "tx", "serial", "interrupt", "nvic", "ch340", "vofa"]
+  "tags": ["uart", "dma", "tx", "rx", "echo", "serial", "smoke-test", "float", "interrupt", "nvic", "ch340", "vofa", "pid-tuning"]
 }

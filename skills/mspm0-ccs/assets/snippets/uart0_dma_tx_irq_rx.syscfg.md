@@ -1,8 +1,10 @@
-# UART0 DMA TX SysConfig Snippet
+# UART0 DMA TX + IRQ RX SysConfig Snippet
 
 ## Use Case
 
-Tianmengxing MSPM0G3507 UART0 transmit through DMA at 115200 baud, using PA10 as TX and PA11 as RX. This is a simple repeated-TX pattern, not a variable-length DMA receive design.
+Tianmengxing MSPM0G3507 UART0 at 115200 baud, using PA10 as TX and PA11 as RX. RX is interrupt-driven for newline-terminated PC-to-MCU test frames, and TX uses DMA for MCU-to-PC echo/debug output.
+
+This is a complete UART send/receive smoke-test pattern for agents. Optional ASCII float parsing can be layered on top of the received text frame. It is not a high-throughput DMA RX design.
 
 ## Snippet
 
@@ -12,7 +14,7 @@ const UART1  = UART.addInstance();
 
 UART1.$name                = "UART_0";
 UART1.targetBaudRate       = 115200;
-UART1.enabledInterrupts    = ["DMA_DONE_TX"];
+UART1.enabledInterrupts    = ["DMA_DONE_TX", "RX"];
 UART1.enabledDMATXTriggers = "DL_UART_DMA_INTERRUPT_TX";
 
 UART1.peripheral.rxPin.$assign = "PA11";
@@ -45,7 +47,7 @@ void UART_init(void) {
 }
 ```
 
-The UART DMA_DONE_TX interrupt is what sets the user `UART0TxDMADone` flag back to 1. If the NVIC interrupt is not enabled, the first DMA transfer can transmit but later calls can block forever in `while (!UART0TxDMADone);`.
+The `DMA_DONE_TX` interrupt sets `UART0TxDMADone` back to 1. The `RX` interrupt lets the user callback collect bytes until `\n`.
 
 ## Generated Names Observed
 

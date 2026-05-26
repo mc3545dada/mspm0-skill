@@ -2,14 +2,16 @@
 
 面向 TI MSPM0 +  SysConfig + DriverLib 的 AI 编程助手 skill 包。
 
-本项目主要服务于国内 MSPM0 开发、电赛备赛和 TI官方开发板/立创天猛星等 MSPM0G3507 使用场景，帮助 Claude Code、OpenCode、OpenClaw、Continue、Cursor、Codex 等 CLI / 编辑器 Agent 更安全地理解和修改、调试 MSPM0 工程。支持MSPM0 + CCS-TI Arm Clang + SysConfig工作流，同时它也补充了对常见 Keil/uVision、CMake + GCC + OpenOCD 工程布局的适配说明。
+本项目主要服务于国内 MSPM0 开发、电赛备赛和 TI官方开发板/立创天猛星等 MSPM0G3507 使用场景，帮助 Claude Code、OpenCode、OpenClaw、Continue、Cursor、Codex 等 CLI / 编辑器 Agent 更安全地理解和修改、调试 MSPM0 工程。
+
+支持MSPM0 + CCS-TI Arm Clang + SysConfig工作流，同时它也补充了对常见 Keil/uVision、CMake + GCC + OpenOCD 工程布局的适配说明。
 
 
 ## 主要功能
 ### 提供对 MSPM0 + SysConfig/DriverLib 工程的支持，使 AI Agent:
 * **引脚配置**：通过 CLI 修改 `.syscfg` 文件初始化外设引脚
 * **代码修改**：修改底层/应用层逻辑，自动编译并烧录到开发板
-* **调试辅助**：串口数据接收、自动断点调试、`.syscfg` / 工程文件自动检查
+* **调试辅助**：串口数据收发、自动断点调试、`.syscfg` / 工程文件自动检查
 * **例程管理**：无现成例程时自动查找官方例程文件
 * **参数调优**：电机/舵机等结构的自动调参和逻辑优化
 * **模块驱动**：提供某个模块的手册并要求Agents驱动/设计算法等
@@ -101,14 +103,14 @@ skills/mspm0-ccs/
 │  │  ├─ clock_80mhz_mfclk.syscfg.md
 │  │  ├─ gpio_output_led.syscfg.md
 │  │  ├─ uart0_blocking_tx.syscfg.md
-│  │  ├─ uart0_dma_tx.syscfg.md
+│  │  ├─ uart0_dma_tx_irq_rx.syscfg.md
 │  │  └─ mspm0g3507_lqfp64_empty_scaffold.syscfg.md
 │  └─ screenshots/
 └─ examples/
    ├─ empty_project/
    ├─ led_blink/
    ├─ uart_blocking_tx/
-   ├─ uart_dma_tx/
+   ├─ uart_dma_tx_irq_rx/
    └─ pwm_breath_led/
 ```
 
@@ -162,7 +164,6 @@ skills/mspm0-ccs/
 
 ![Claude Code 调用 mspm0-ccs skill 配置工程](skills/mspm0-ccs/assets/screenshots/claude-code-skill-start.png)
 
-![Claude Code 使用 DSLite 烧录 MSPM0 工程](skills/mspm0-ccs/assets/screenshots/claude-code-flash.png)
 
 ![Claude Code 完成 SysConfig、编译和烧录后的总结](skills/mspm0-ccs/assets/screenshots/claude-code-summary.png)
 
@@ -262,7 +263,7 @@ python skills\mspm0-ccs\scripts\capture_example.py C:\Users\3545\workspace_ccsth
 - `examples/empty_project/`：未编译空工程基线，默认 32MHz 风格。
 - `examples/led_blink/`：PB22 LED 32MHz 闪灯基线。
 - `examples/uart_blocking_tx/`：80MHz CPUCLK + UART0 阻塞发送字符串基线。
-- `examples/uart_dma_tx/`：80MHz CPUCLK + UART0 DMA 发送字符串基线，包含 DMA_DONE_TX 中断/NVIC 使能经验。
+- `examples/uart_dma_tx_irq_rx/`：80MHz CPUCLK + UART0 中断接收 + DMA 发送回显的完整串口收发验证例程，包含 RX/DMA_DONE_TX 中断、NVIC 使能、超长帧保护；float 文本解析只是其中一个可选演示功能。
 - `examples/pwm_breath_led/`：80MHz CPUCLK + PB22 / TIMG8_CCP1 PWM 呼吸灯基线。
 
 ## 后续计划

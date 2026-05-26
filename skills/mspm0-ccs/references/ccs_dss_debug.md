@@ -49,6 +49,15 @@ python scripts\ccs_dss_debug.py <project-dir> run-to-symbol --symbol main --load
 # Program, reset, and halt at a source line.
 python scripts\ccs_dss_debug.py <project-dir> break-line --source empty.c --line 5 --load --reset "System Reset"
 
+# Load debug symbols only; do not program flash.
+python scripts\ccs_dss_debug.py <project-dir> load-symbols --symbol main --symbol UART0TxDMADone
+
+# Load symbols only, reset, and halt at a source line without reprogramming flash.
+python scripts\ccs_dss_debug.py <project-dir> break-line --source BSP/UART.c --line 75 --symbols --reset "System Reset"
+
+# Load symbols only, reset, and halt at an address breakpoint.
+python scripts\ccs_dss_debug.py <project-dir> break-address --address 0x2564 --symbols --reset "System Reset"
+
 # Continue a currently connected target and disconnect the debug session.
 python scripts\ccs_dss_debug.py <project-dir> run
 
@@ -63,6 +72,7 @@ Useful options:
 - `--out <path>`: explicit program output file.
 - `--timeout-ms <n>`: DSS script timeout.
 - `--keep-js`: keep the temporary JavaScript for diagnosis.
+- `--symbols`: load debug symbols from `.out` without programming flash for commands that support it.
 - `--leave-running`: remove breakpoints and continue target execution before disconnecting, where supported by the chosen command.
 
 ## Verified Notes
@@ -76,12 +86,17 @@ Observed working operations:
 - `session.target.getResets()` returning reset types including Board Reset, CPU Reset, Core Reset, and System Reset.
 - `session.registers.read("PC")`, `SP`, and `LR`.
 - `session.memory.loadProgram(<project>.out)`.
+- `session.symbols.load(<project>.out)` for no-flash symbol loading.
+- `session.symbols.getAddress(<symbol>)` and `session.symbols.lookupSymbols(<address>)`.
 - Symbol breakpoint at `main`.
 - System Reset followed by `target.run()` halting at `main`.
 - Source-line breakpoint at a line with generated code.
+- Address breakpoint at a known function address.
 - `target.run(false)` to leave the target running before disconnect.
 
 One tested source line failed because no code was associated with that exact line. Another source line in the same file worked. For agents, that means source-line breakpoint failure should be reported precisely and retried with a symbol, nearby executable line, or address.
+
+For non-invasive diagnosis after firmware has already been flashed, prefer `load-symbols`, `break-line --symbols`, or `break-address --symbols` over `--load`. These commands load debug information from the `.out` file without rewriting flash.
 
 ## When To Stop
 

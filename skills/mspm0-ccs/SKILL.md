@@ -93,7 +93,7 @@ Read references only when needed:
 - `references/hardware_validation_notes.md`: verified Tianmengxing MSPM0G3507 lessons, HFXT warnings, flash/reset behavior, and real-board caveats.
 - `references/ccs_dss_debug.md`: CCS Debug Server Scripting (`ccs-dss`) debug workflow, breakpoints, register reads, and current limitations.
 
-Use `examples/` as the main source for reusable tested patterns. Prefer `scripts/list_examples.py` to inspect available examples before opening individual example files.
+Use `examples/` as one source for reusable tested patterns. Prefer `scripts/list_examples.py` to inspect available examples before opening individual example files, but do not assume packaged examples outrank the user's existing project structure or official TI SDK examples.
 
 ## Examples
 
@@ -110,6 +110,14 @@ examples/<name>/
 
 Do not require users to drop full CCS projects into `examples/`. Use `scripts/capture_example.py` to extract a compact example package from a real project.
 
+When applying an example to a user project:
+
+- Treat skill examples as proven references, not mandatory project templates.
+- Copy only the needed `.syscfg` fields, generated-name expectations, code pattern, or debugging lesson.
+- Preserve the user's existing file layout and naming. If an example uses `BSP/`, do not create `BSP/` in the user project unless the user asked for that structure or the project already follows it.
+- Prefer the user's local style when it conflicts with an example's directory names, wrapper names, or layering.
+- Consider official TI SDK examples and local SDK metadata at the same or higher priority when they better match the user's board, SDK version, peripheral, or toolchain.
+
 ## Tools
 
 - `python scripts/check_syscfg.py <project-dir>`: static project check for `.syscfg`, generated files, pins, init spelling, project shape, CCS/Keil/CMake/OpenOCD clues, build output, target config, and validation hints.
@@ -118,6 +126,7 @@ Do not require users to drop full CCS projects into `examples/`. Use `scripts/ca
 - `python scripts/index_syscfg_examples.py <mspm0-sdk-root> --board LP_MSPM0G3507 --module UART`: search local TI SDK examples and module metadata.
 - `python scripts/serial_console.py --list`: list serial ports.
 - `python scripts/ccs_dss_debug.py <project-dir> probe --leave-running`: connect through CCS Debug Server Scripting, read reset/register state, verify the configured `.ccxml` debug path, and continue the target before disconnecting.
+- `python scripts/ccs_dss_debug.py <project-dir> load-symbols --symbol main`: load debug symbols from `.out` without programming flash.
 
 For the verified CH340 setup, use `python scripts/serial_console.py -p COM6 -b 115200 --timestamp --duration 10` after closing other serial tools such as VOFA+.
 
@@ -138,8 +147,10 @@ The currently packaged automated debug helper is the CCS Debug Server Scripting 
 ```text
 python scripts/ccs_dss_debug.py <project-dir> probe --leave-running
 python scripts/ccs_dss_debug.py <project-dir> run-to-symbol --symbol main --load --reset "System Reset"
+python scripts/ccs_dss_debug.py <project-dir> break-line --source BSP/UART.c --line 75 --symbols --reset "System Reset"
+python scripts/ccs_dss_debug.py <project-dir> break-address --address 0x2564 --symbols --reset "System Reset"
 ```
 
 Use it only for CCS / CCS Theia / UniFlash-style projects with a valid `targetConfigs/*.ccxml`. The physical probe is selected by `.ccxml`, so the backend is not inherently J-Link-only; it can also work with CCS-supported probes such as XDS110 when the project configuration matches the hardware.
 
-Do not treat `ccs-dss` as the OpenOCD path. For CMake/GCC/OpenOCD projects, keep future debugging under a separate `openocd-gdb` backend. Debug actions can halt the CPU, so report that risk before using breakpoints or register inspection on real-time control hardware.
+Use `--symbols` or `load-symbols` when firmware is already flashed and the goal is to set breakpoints or inspect symbols without rewriting flash. Do not treat `ccs-dss` as the OpenOCD path. For CMake/GCC/OpenOCD projects, keep future debugging under a separate `openocd-gdb` backend. Debug actions can halt the CPU, so report that risk before using breakpoints or register inspection on real-time control hardware.

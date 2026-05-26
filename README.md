@@ -101,12 +101,14 @@ skills/mspm0-ccs/
 │  │  ├─ clock_80mhz_mfclk.syscfg.md
 │  │  ├─ gpio_output_led.syscfg.md
 │  │  ├─ uart0_blocking_tx.syscfg.md
+│  │  ├─ uart0_dma_tx.syscfg.md
 │  │  └─ mspm0g3507_lqfp64_empty_scaffold.syscfg.md
 │  └─ screenshots/
 └─ examples/
    ├─ empty_project/
    ├─ led_blink/
    ├─ uart_blocking_tx/
+   ├─ uart_dma_tx/
    └─ pwm_breath_led/
 ```
 
@@ -200,6 +202,7 @@ CCS-DSS 调试链路测试（仅适用于 CCS / CCS Theia / UniFlash Debug Serve
 ```powershell
 python skills\mspm0-ccs\scripts\ccs_dss_debug.py C:\Users\3545\workspace_ccstheia\26testproject2 probe --leave-running
 python skills\mspm0-ccs\scripts\ccs_dss_debug.py C:\Users\3545\workspace_ccstheia\26testproject2 run-to-symbol --symbol main --load --reset "System Reset"
+python skills\mspm0-ccs\scripts\ccs_dss_debug.py C:\Users\3545\workspace_ccstheia\26testproject2 load-symbols --symbol main
 ```
 
 索引本地 TI MSPM0 SDK 的官方 SysConfig 例程和模块 metadata：
@@ -247,16 +250,18 @@ python skills\mspm0-ccs\scripts\capture_example.py C:\Users\3545\workspace_ccsth
 
 ## 例程说明
 
-- `examples/` 是主要例程参考目录，Agent 会优先通过 `manifest.json` 快速选择相近例程。
+- `examples/` 是可参考的已验证例程目录，Agent 可以通过 `manifest.json` 快速选择相近例程，但不应把它当成必须照搬的工程模板。
 - 每个例程包含 `example.syscfg`、`README.md`、`manifest.json` 和 `src/`。
+- 使用例程时应以用户当前工程结构和用户需求为准，可以只参考其中一部分 `.syscfg`、代码片段或调试经验；不要因为例程里有 `BSP/`、`app/` 等目录，就强行在用户工程中新建同名目录或改成作者例程的结构。
 - 如果你想让Agents按你的风格来初始化项目，尝试要求它把你曾做过的参考项目融合进skill，它会自动调用工具来融合你的项目进入`examples/`目录
-- 如果当前例程不覆盖用户需求，Agent 会使用附带工具搜索本机 TI SDK 官方例程。
+- 如果当前例程不覆盖用户需求，或 TI 官方 SDK 例程更贴近目标开发板/SDK/外设/工具链，Agent 应优先或同时参考本机 TI SDK 官方例程。
 - 用户自己的项目不要整工程直接扔进 `examples/`；建议要求Agents使用 `capture_example.py` 抽取成精简例程包。
 ---
 以下为我预装的简单examples，你也可以移除他们
 - `examples/empty_project/`：未编译空工程基线，默认 32MHz 风格。
 - `examples/led_blink/`：PB22 LED 32MHz 闪灯基线。
 - `examples/uart_blocking_tx/`：80MHz CPUCLK + UART0 阻塞发送字符串基线。
+- `examples/uart_dma_tx/`：80MHz CPUCLK + UART0 DMA 发送字符串基线，包含 DMA_DONE_TX 中断/NVIC 使能经验。
 - `examples/pwm_breath_led/`：80MHz CPUCLK + PB22 / TIMG8_CCP1 PWM 呼吸灯基线。
 
 ## 后续计划

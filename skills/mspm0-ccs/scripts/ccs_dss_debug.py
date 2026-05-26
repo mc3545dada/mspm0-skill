@@ -27,6 +27,10 @@ def q(value: str | Path) -> str:
     return json.dumps(str(value).replace("\\", "/"))
 
 
+def int_auto(value: str) -> int:
+    return int(value, 0)
+
+
 def find_first(paths: list[Path], what: str) -> Path:
     existing = [p for p in paths if p.exists()]
     if not existing:
@@ -199,16 +203,23 @@ def make_run_to_symbol_js(
     timeout_ms: int,
     ccxml: Path,
     program: Path | None,
+    symbols: bool,
     symbol: str,
     reset: str | None,
     leave_running: bool,
 ) -> str:
     load_js = ""
-    if program:
+    if program and not symbols:
         load_js = f"""
   var program = {q(program)};
   session.memory.loadProgram(program);
   emit({{event:"program_loaded", program:program}});
+"""
+    elif symbols and program:
+        load_js = f"""
+  var program = {q(program)};
+  session.symbols.load(program);
+  emit({{event:"symbols_loaded", program:program}});
 """
     return (
         js_prelude(timeout_ms, ccxml)
@@ -231,17 +242,24 @@ def make_break_line_js(
     timeout_ms: int,
     ccxml: Path,
     program: Path | None,
+    symbols: bool,
     source: str,
     line: int,
     reset: str | None,
     leave_running: bool,
 ) -> str:
     load_js = ""
-    if program:
+    if program and not symbols:
         load_js = f"""
   var program = {q(program)};
   session.memory.loadProgram(program);
   emit({{event:"program_loaded", program:program}});
+"""
+    elif symbols and program:
+        load_js = f"""
+  var program = {q(program)};
+  session.symbols.load(program);
+  emit({{event:"symbols_loaded", program:program}});
 """
     return (
         js_prelude(timeout_ms, ccxml)
@@ -258,6 +276,82 @@ def make_break_line_js(
   resetTarget(session, {q(reset)});
   session.target.run();
   emit({{event:"halted_at_breakpoint", source:source, line:line, pc:readReg(session, "PC"), sp:readReg(session, "SP"), lr:readReg(session, "LR"), halted:session.target.isHalted()}});
+"""
+        + js_finally(leave_running=leave_running)
+    )
+
+
+def make_load_symbols_js(
+    timeout_ms: int,
+    ccxml: Path,
+    program: Path,
+    symbols: list[str],
+    lookup_address: str | None,
+    lookup_length: int | None,
+    leave_running: bool,
+) -> str:
+    symbol_lines = ""
+    for symbol in symbols:
+        symbol_lines += f"""
+  try {{
+    emit({{event:"symbol", symbol:{q(symbol)}, address:printable(session.symbols.getAddress({q(symbol)}))}});
+  }} catch (err) {{
+    emit({{event:"symbol_error", symbol:{q(symbol)}, error:String(err)}});
+  }}
+"""
+    lookup_js = ""
+    if lookup_address:
+        length_arg = "" if lookup_length is None else f", {lookup_length}"
+        lookup_js = f"""
+  try {{
+    var lookupAddress = Number({q(lookup_address)});
+    emit({{event:"lookup_symbols", address:printable(lookupAddress), symbols:session.symbols.lookupSymbols(lookupAddress{length_arg})}});
+  }} catch (err) {{
+    emit({{event:"lookup_symbols_error", address:{q(lookup_address)}, error:String(err)}});
+  }}
+"""
+    return (
+        js_prelude(timeout_ms, ccxml)
+        + f"""
+  var program = {q(program)};
+  session.symbols.load(program);
+  emit({{event:"symbols_loaded", program:program}});
+"""
+        + symbol_lines
+        + lookup_js
+        + js_finally(leave_running=leave_running)
+    )
+
+
+def make_break_address_js(
+    timeout_ms: int,
+    ccxml: Path,
+    program: Path | None,
+    address: str,
+    reset: str | None,
+    leave_running: bool,
+) -> str:
+    load_js = ""
+    if program:
+        load_js = f"""
+  var program = {q(program)};
+  session.symbols.load(program);
+  emit({{event:"symbols_loaded", program:program}});
+"""
+    return (
+        js_prelude(timeout_ms, ccxml)
+        + load_js
+        + f"""
+  try {{ session.breakpoints.removeAll(); }} catch (err) {{}}
+  var addressText = {q(address)};
+  var address = Number(addressText);
+  var bp = session.breakpoints.add(address);
+  var names = [];
+  try {{ names = session.symbols.lookupSymbols(address); }} catch (err) {{}}
+  emit({{event:"breakpoint_added", type:"address", address:printable(address), symbols:names, id:String(bp)}});
+  resetTarget(session, {q(reset)});
+  session.target.run();
+  emit({{event:"halted_at_breakpoint", address:printable(address), pc:readReg(session, "PC"), sp:readReg(session, "SP"), lr:readReg(session, "LR"), halted:session.target.isHalted()}});
 """
         + js_finally(leave_running=leave_running)
     )
@@ -344,6 +438,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     run_symbol = subparsers.add_parser("run-to-symbol", help="Optionally load, reset, then run to a symbol")
     run_symbol.add_argument("--symbol", default="main", help="Symbol name")
     run_symbol.add_argument("--load", action="store_true", help="Load/program .out before running")
+    run_symbol.add_argument("--symbols", action="store_true", help="Load symbols from .out without programming flash")
     run_symbol.add_argument("--reset", default="System Reset", help='Reset type, default "System Reset"')
     run_symbol.add_argument("--leave-running", action="store_true", help="Continue target before disconnecting")
 
@@ -351,8 +446,21 @@ def build_arg_parser() -> argparse.ArgumentParser:
     break_line.add_argument("--source", required=True, help="Source filename or full source path")
     break_line.add_argument("--line", required=True, type=int, help="1-based source line")
     break_line.add_argument("--load", action="store_true", help="Load/program .out before running")
+    break_line.add_argument("--symbols", action="store_true", help="Load symbols from .out without programming flash")
     break_line.add_argument("--reset", default="System Reset", help='Reset type, default "System Reset"')
     break_line.add_argument("--leave-running", action="store_true", help="Continue target before disconnecting")
+
+    load_symbols = subparsers.add_parser("load-symbols", help="Load debug symbols from .out without programming flash")
+    load_symbols.add_argument("--symbol", action="append", default=[], help="Symbol to resolve. Repeatable.")
+    load_symbols.add_argument("--lookup-address", help="Address to look up, for example 0x1bc0")
+    load_symbols.add_argument("--lookup-length", type=int_auto, help="Optional lookup range length")
+    load_symbols.add_argument("--leave-running", action="store_true", help="Continue target before disconnecting")
+
+    break_address = subparsers.add_parser("break-address", help="Load symbols, set an address breakpoint, then run")
+    break_address.add_argument("--address", required=True, help="Breakpoint address, for example 0x1bc0")
+    break_address.add_argument("--symbols", action="store_true", help="Load symbols from .out before setting breakpoint")
+    break_address.add_argument("--reset", default="System Reset", help='Reset type, default "System Reset"')
+    break_address.add_argument("--leave-running", action="store_true", help="Continue target before disconnecting")
 
     subparsers.add_parser("halt", help="Connect, halt, read registers, disconnect")
     subparsers.add_parser("run", help="Connect, start/continue running, disconnect")
@@ -371,8 +479,10 @@ def main(argv: list[str] | None = None) -> int:
     run_bat = find_run_bat(args.ccs_run)
     ccxml = find_ccxml(project_dir, args.ccxml)
 
-    program_required = args.command in {"load"} or (
-        args.command in {"run-to-symbol", "break-line"} and getattr(args, "load", False)
+    program_required = args.command in {"load", "load-symbols"} or (
+        args.command in {"run-to-symbol", "break-line"} and (getattr(args, "load", False) or getattr(args, "symbols", False))
+    ) or (
+        args.command in {"break-address"} and getattr(args, "symbols", False)
     )
     program = find_program(project_dir, args.out, required=program_required)
 
@@ -389,7 +499,8 @@ def main(argv: list[str] | None = None) -> int:
         js_text = make_run_to_symbol_js(
             args.timeout_ms,
             ccxml,
-            program if args.load else None,
+            program if (args.load or args.symbols) else None,
+            args.symbols,
             args.symbol,
             args.reset,
             args.leave_running,
@@ -398,9 +509,29 @@ def main(argv: list[str] | None = None) -> int:
         js_text = make_break_line_js(
             args.timeout_ms,
             ccxml,
-            program if args.load else None,
+            program if (args.load or args.symbols) else None,
+            args.symbols,
             args.source,
             args.line,
+            args.reset,
+            args.leave_running,
+        )
+    elif args.command == "load-symbols":
+        js_text = make_load_symbols_js(
+            args.timeout_ms,
+            ccxml,
+            program,
+            args.symbol,
+            args.lookup_address,
+            args.lookup_length,
+            args.leave_running,
+        )
+    elif args.command == "break-address":
+        js_text = make_break_address_js(
+            args.timeout_ms,
+            ccxml,
+            program if args.symbols else None,
+            args.address,
             args.reset,
             args.leave_running,
         )

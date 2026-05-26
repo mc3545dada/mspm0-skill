@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "name": "uart_dma_tx",
+  "title": "UART0 DMA TX",
+  "description": "UART0 115200 8N1 DMA transmit example. Captures the fix for one-shot DMA TX caused by not enabling UART0 NVIC interrupts.",
+  "board": "LCKFB Tianmengxing MSPM0G3507",
+  "device": "MSPM0G3507",
+  "package": "LQFP-64",
+  "sdk": "MSPM0 SDK 2.10.00.04",
+  "sysconfig": "1.26.2",
+  "validated": true,
+  "validation_level": "hardware_debug",
+  "complexity": "intermediate",
+  "clock": {
+    "cpuclk_hz": 80000000,
+    "uart_clock_hz": 40000000,
+    "mfclk_hz": 4000000
+  },
+  "peripherals": ["SYSCTL", "GPIO", "UART", "DMA"],
+  "pins": ["PB22", "PA10", "PA11"],
+  "source_files": ["src/empty.c", "src/BSP/UART.c", "src/BSP/UART.h"],
+  "syscfg": "example.syscfg",
+  "generated_names": [
+    "UART_0_INST",
+    "UART_0_INST_INT_IRQN",
+    "UART_0_INST_DMA_TRIGGER",
+    "DMA_UART0Tx_CHAN_ID",
+    "DL_UART_IIDX_DMA_DONE_TX",
+    "LED_PORT",
+    "LED_PIN_22_PIN"
+  ],
+  "parameters": {
+    "uart": "UART0",
+    "baud": 115200,
+    "format": "8N1",
+    "tx_pin": "PA10",
+    "rx_pin": "PA11",
+    "dma_channel": "DMA_CH0",
+    "dma_trigger": "UART0_TX"
+  },
+  "tags": ["uart", "dma", "tx", "serial", "interrupt", "nvic", "ch340", "vofa"]
+}

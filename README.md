@@ -195,6 +195,7 @@ python skills\mspm0-ccs\scripts\check_syscfg.py C:\Users\3545\workspace_ccstheia
 ```powershell
 python skills\mspm0-ccs\scripts\serial_console.py --list
 python skills\mspm0-ccs\scripts\serial_console.py -p COM6 -b 115200 --timestamp --duration 10
+python skills\mspm0-ccs\scripts\serial_console.py -p COM6 -b 115200 --send "ping" --send-line --timestamp --duration 3
 ```
 
 CCS-DSS 调试链路测试（仅适用于 CCS / CCS Theia / UniFlash Debug Server Scripting 这条线，不是 OpenOCD/GDB）：

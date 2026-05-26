@@ -129,6 +129,7 @@ When applying an example to a user project:
 - `python scripts/ccs_dss_debug.py <project-dir> load-symbols --symbol main`: load debug symbols from `.out` without programming flash.
 
 For the verified CH340 setup, use `python scripts/serial_console.py -p COM6 -b 115200 --timestamp --duration 10` after closing other serial tools such as VOFA+.
+For line-based MCU parsers, send one test frame and wait for the echo with `python scripts/serial_console.py -p COM6 -b 115200 --send "ping" --send-line --timestamp --duration 3`. Use `--send-hex "00 00 80 3F"` when testing binary payloads.
 
 ## Flash Backends
 

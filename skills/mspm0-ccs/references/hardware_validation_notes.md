@@ -12,7 +12,7 @@ Validated combination:
 - SysConfig: 1.26.2
 - Compiler: TI Arm Clang 4.0.3 LTS
 - Debug probe: J-Link through UniFlash / DSLite
-- Validated peripherals: PB22 onboard LED, UART0 blocking TX, PB22 TIMG8 PWM breathing LED
+- Validated peripherals: PB22 onboard LED, UART0 blocking TX, dual UART DMA TX + IRQ RX, PB22 TIMG8 PWM breathing LED
 - Validated clock: 80 MHz CPUCLK with MFCLK 4 MHz for UART work
 
 Other boards, packages, SDK versions, CCS versions, probes, and pin maps may work, but they are not guaranteed by these notes.
@@ -52,6 +52,27 @@ Do not hide this. Confirm generated `CPUCLK_FREQ`, `GPIO_HFXIN_*`, and `GPIO_HFX
 ## UART0 Blocking TX Lessons
 
 The verified UART smoke test used UART0 at 115200 8N1 with PA10/PA11 and a CH340 PC adapter. Treat it as a blocking transmit baseline, not a final DMA or variable-length receive design.
+
+## Dual UART DMA TX + IRQ RX Lessons
+
+The verified dual-UART smoke test used:
+
+- UART0: PA10 TX / PA11 RX / DMA_CH0 / COM7
+- UART1: PB6 TX / PB7 RX / DMA_CH1 / COM9
+- Baud: 115200 8N1
+
+PB6/PB7 must be crossed to the USB serial adapter: MCU TX PB6 to adapter RX, MCU RX PB7 to adapter TX, and common GND.
+
+Important firmware lessons:
+
+- Store DMA printf buffers per UART context, not in a function-static buffer shared by all UARTs.
+- Use `char[]` RX buffers when printing with `%s`; keep flags and indexes volatile instead of making the whole text buffer volatile.
+- Use `const char *fmt` for printf helpers because call sites usually pass string literals.
+- If no DMA TX channel is configured, a fallback helper that accepts `len` should transmit exactly `len` bytes.
+- Do not let an unknown UART instance fall back to IRQn 0; use a sentinel and fail the initialization.
+- For low-rate single-command UARTs, `UART_RX_MODE_ISR_CALLBACK` can be convenient.
+- For multiple UARTs or heavier parsing/formatting, prefer `UART_RX_MODE_POLL` or an RTOS task so RX ISRs stay short.
+- `UART_RX_MODE_NONE` is useful for TX-only debug UARTs while still allowing `DMA_DONE_TX` interrupts to release the DMA busy flag.
 
 ## PWM Breathing LED Lessons
 

@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "name": "uart_dma_tx_irq_rx",
+  "title": "UART DMA TX + IRQ RX Echo",
+  "description": "Verified dual-UART 115200 8N1 send/receive smoke-test example for agents: UART0 uses ISR complete-frame callbacks, UART1 uses poll-mode frame handling, DMA TX echoes/debugs responses, and optional ASCII float parsing demonstrates parameter input.",
+  "board": "LCKFB Tianmengxing MSPM0G3507",
+  "device": "MSPM0G3507",
+  "package": "LQFP-64",
+  "sdk": "MSPM0 SDK 2.10.00.04",
+  "sysconfig": "1.26.2",
+  "validated": true,
+  "validation_level": "hardware_debug",
+  "complexity": "intermediate",
+  "clock": {
+    "cpuclk_hz": 80000000,
+    "uart_clock_hz": 40000000,
+    "mfclk_hz": 4000000
+  },
+  "peripherals": ["SYSCTL", "GPIO", "UART", "DMA"],
+  "pins": ["PB22", "PA10", "PA11", "PB6", "PB7"],
+  "source_files": ["src/empty.c", "src/BSP/UART.c", "src/BSP/UART.h"],
+  "syscfg": "example.syscfg",
+  "generated_names": [
+    "UART_0_INST",
+    "UART_0_INST_INT_IRQN",
+    "UART_0_INST_DMA_TRIGGER",
+    "DMA_UART0Tx_CHAN_ID",
+    "UART_1_INST",
+    "UART_1_INST_INT_IRQN",
+    "UART_1_INST_DMA_TRIGGER",
+    "DMA_UART1Tx_CHAN_ID",
+    "DL_UART_IIDX_DMA_DONE_TX",
+    "DL_UART_IIDX_RX"
+  ],
+  "parameters": {
+    "uart0": "UART0",
+    "uart1": "UART1",
+    "baud": 115200,
+    "format": "8N1",
+    "uart0_tx_pin": "PA10",
+    "uart0_rx_pin": "PA11",
+    "uart1_tx_pin": "PB6",
+    "uart1_rx_pin": "PB7",
+    "uart0_dma_channel": "DMA_CH0",
+    "uart1_dma_channel": "DMA_CH1",
+    "rx_frame_end": "LF",
+    "rx_modes": ["UART_RX_MODE_NONE", "UART_RX_MODE_POLL", "UART_RX_MODE_ISR_CALLBACK"],
+    "echo_protocol": "Send a text line such as ping\\n and the MCU replies over DMA TX.",
+    "float_protocol": "Optional ASCII CSV parsing, for example 1.23,44,55.7\\n"
+  },
+  "tags": ["uart", "dual-uart", "dma", "tx", "rx", "echo", "serial", "smoke-test", "float", "interrupt", "poll", "nvic", "context", "ch340", "vofa", "pid-tuning"]
+}

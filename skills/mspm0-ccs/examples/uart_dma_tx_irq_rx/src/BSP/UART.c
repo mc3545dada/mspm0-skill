@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 #define UART_DMA_CH_NONE 0xFFu
+#define UART_IRQN_NONE   ((IRQn_Type) (-128))
 
 static UART_Context uartContexts[UART_MAX_CONTEXTS];
 
@@ -31,6 +32,8 @@ static UART_Context *UART_allocContext(UART_Regs *uart)
     for (i = 0; i < UART_MAX_CONTEXTS; i++) {
         if (uartContexts[i].inst == 0) {
             uartContexts[i].inst = uart;
+            uartContexts[i].rxMode = UART_RX_MODE_NONE;
+            uartContexts[i].onFrame = 0;
             uartContexts[i].txDMADone = 1;
             uartContexts[i].rxBuf[0] = '\0';
             uartContexts[i].rxWorkBuf[0] = '\0';
@@ -68,7 +71,7 @@ static IRQn_Type UART_getIRQn(UART_Regs *uart)
         return UART_3_INST_INT_IRQN;
     }
 #endif
-    return (IRQn_Type) 0;
+    return UART_IRQN_NONE;
 }
 
 static uint8_t UART_getDMATxChannel(UART_Regs *uart)
@@ -96,7 +99,7 @@ static uint8_t UART_getDMATxChannel(UART_Regs *uart)
     return UART_DMA_CH_NONE;
 }
 
-UART_Context *UART_init(UART_Regs *uart)
+UART_Context *UART_init(UART_Regs *uart, UART_RxMode rxMode, UART_FrameCallback onFrame)
 {
     IRQn_Type irqn;
     UART_Context *ctx;
@@ -106,10 +109,25 @@ UART_Context *UART_init(UART_Regs *uart)
         return 0;
     }
 
-    UART_startReceive(uart);
+    ctx->rxMode = rxMode;
+    ctx->onFrame = onFrame;
+    if (rxMode != UART_RX_MODE_NONE) {
+        UART_startReceive(uart);
+    } else {
+        ctx->rxDone = 0;
+        ctx->rxPos = 0;
+        ctx->rxLen = 0;
+        ctx->rxOvf = 0;
+        ctx->rxBuf[0] = '\0';
+        ctx->rxWorkBuf[0] = '\0';
+    }
     ctx->txDMADone = 1;
 
     irqn = UART_getIRQn(uart);
+    if (irqn == UART_IRQN_NONE) {
+        return 0;
+    }
+
     NVIC_ClearPendingIRQ(irqn);
     NVIC_EnableIRQ(irqn);
 
@@ -129,16 +147,21 @@ int UART_sendStr(UART_Regs *uart, const char *str)
     return cnt;
 }
 
-int UART_printf(UART_Regs *uart, char *fmt, ...)
+int UART_printf(UART_Regs *uart, const char *fmt, ...)
 {
-    static char buf[UART_TX_BUF_SIZE];
     int len;
     va_list args;
+    UART_Context *ctx;
+
+    ctx = UART_getContext(uart);
+    if (ctx == 0) {
+        return 0;
+    }
 
     va_start(args, fmt);
-    len = vsnprintf(buf, UART_TX_BUF_SIZE, fmt, args);
+    len = vsnprintf(ctx->txBuf, UART_TX_BUF_SIZE, fmt, args);
     va_end(args);
-    UART_sendStr(uart, buf);
+    UART_sendStr(uart, ctx->txBuf);
 
     return len;
 }
@@ -156,9 +179,8 @@ void UART_sendStrDMA(UART_Regs *uart, const char *str, uint16_t len)
     (void) UART_trySendStrDMA(uart, str, len);
 }
 
-void UART_printfDMA(UART_Regs *uart, char *fmt, ...)
+void UART_printfDMA(UART_Regs *uart, const char *fmt, ...)
 {
-    static char buf[UART_TX_BUF_SIZE];
     int len;
     va_list args;
     UART_Context *ctx;
@@ -170,9 +192,9 @@ void UART_printfDMA(UART_Regs *uart, char *fmt, ...)
 
     while (!ctx->txDMADone);
     va_start(args, fmt);
-    len = vsnprintf(buf, UART_TX_BUF_SIZE, fmt, args);
+    len = vsnprintf(ctx->txBuf, UART_TX_BUF_SIZE, fmt, args);
     va_end(args);
-    UART_sendStrDMA(uart, buf, UART_clampPrintfLength(len));
+    UART_sendStrDMA(uart, ctx->txBuf, UART_clampPrintfLength(len));
 }
 
 uint8_t UART_trySendStrDMA(UART_Regs *uart, const char *str, uint16_t len)
@@ -191,7 +213,11 @@ uint8_t UART_trySendStrDMA(UART_Regs *uart, const char *str, uint16_t len)
 
     dmaChannel = UART_getDMATxChannel(uart);
     if (dmaChannel == UART_DMA_CH_NONE) {
-        UART_sendStr(uart, str);
+        uint16_t i;
+
+        for (i = 0; i < len; i++) {
+            DL_UART_transmitDataBlocking(uart, (uint8_t) str[i]);
+        }
         return 1;
     }
 
@@ -204,9 +230,8 @@ uint8_t UART_trySendStrDMA(UART_Regs *uart, const char *str, uint16_t len)
     return 1;
 }
 
-uint8_t UART_tryPrintfDMA(UART_Regs *uart, char *fmt, ...)
+uint8_t UART_tryPrintfDMA(UART_Regs *uart, const char *fmt, ...)
 {
-    static char buf[UART_TX_BUF_SIZE];
     int len;
     va_list args;
     UART_Context *ctx;
@@ -217,10 +242,10 @@ uint8_t UART_tryPrintfDMA(UART_Regs *uart, char *fmt, ...)
     }
 
     va_start(args, fmt);
-    len = vsnprintf(buf, UART_TX_BUF_SIZE, fmt, args);
+    len = vsnprintf(ctx->txBuf, UART_TX_BUF_SIZE, fmt, args);
     va_end(args);
 
-    return UART_trySendStrDMA(uart, buf, UART_clampPrintfLength(len));
+    return UART_trySendStrDMA(uart, ctx->txBuf, UART_clampPrintfLength(len));
 }
 
 void UART_startReceive(UART_Regs *uart)
@@ -258,6 +283,22 @@ void UART_clearNewFrame(UART_Regs *uart)
     if (ctx != 0) {
         ctx->rxDone = 0;
     }
+}
+
+uint8_t UART_poll(UART_Regs *uart)
+{
+    UART_Context *ctx;
+
+    ctx = UART_getContext(uart);
+    if ((ctx == 0) || (ctx->rxMode != UART_RX_MODE_POLL) || (!ctx->rxDone)) {
+        return 0;
+    }
+
+    if (ctx->onFrame != 0) {
+        ctx->onFrame(ctx);
+    }
+
+    return 1;
 }
 
 uint16_t UART_parseRxFloats(UART_Regs *uart)
@@ -370,4 +411,32 @@ uint8_t UART_RxCallback(UART_Regs *uart)
     ctx->rxWorkBuf[ctx->rxPos] = rxData;
     ctx->rxPos++;
     return 0;
+}
+
+uint8_t UART_RxIRQHandler(UART_Regs *uart)
+{
+    uint8_t frameReady;
+    UART_Context *ctx;
+
+    ctx = UART_getContext(uart);
+    if (ctx == 0) {
+        (void) DL_UART_receiveData(uart);
+        return 0;
+    }
+
+    if (ctx->rxMode == UART_RX_MODE_NONE) {
+        (void) DL_UART_receiveData(uart);
+        return 0;
+    }
+
+    frameReady = UART_RxCallback(uart);
+    if (!frameReady) {
+        return 0;
+    }
+
+    if ((ctx != 0) && (ctx->rxMode == UART_RX_MODE_ISR_CALLBACK) && (ctx->onFrame != 0)) {
+        ctx->onFrame(ctx);
+    }
+
+    return 1;
 }

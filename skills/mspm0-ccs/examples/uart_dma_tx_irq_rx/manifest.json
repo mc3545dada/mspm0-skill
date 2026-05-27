@@ -2,7 +2,7 @@
   "schema": 1,
   "name": "uart_dma_tx_irq_rx",
   "title": "UART DMA TX + IRQ RX Echo",
-  "description": "Verified UART 115200 8N1 send/receive smoke-test example for agents: interrupt RX collects newline-terminated frames, DMA TX echoes/debugs responses, and optional ASCII float parsing demonstrates parameter input. The included SysConfig uses UART0, but the helper API accepts a generated UART_x_INST instance.",
+  "description": "Verified dual-UART 115200 8N1 send/receive smoke-test example for agents: UART0 uses ISR complete-frame callbacks, UART1 uses poll-mode frame handling, DMA TX echoes/debugs responses, and optional ASCII float parsing demonstrates parameter input.",
   "board": "LCKFB Tianmengxing MSPM0G3507",
   "device": "MSPM0G3507",
   "package": "LQFP-64",
@@ -17,7 +17,7 @@
     "mfclk_hz": 4000000
   },
   "peripherals": ["SYSCTL", "GPIO", "UART", "DMA"],
-  "pins": ["PB22", "PA10", "PA11"],
+  "pins": ["PB22", "PA10", "PA11", "PB6", "PB7"],
   "source_files": ["src/empty.c", "src/BSP/UART.c", "src/BSP/UART.h"],
   "syscfg": "example.syscfg",
   "generated_names": [
@@ -25,20 +25,28 @@
     "UART_0_INST_INT_IRQN",
     "UART_0_INST_DMA_TRIGGER",
     "DMA_UART0Tx_CHAN_ID",
+    "UART_1_INST",
+    "UART_1_INST_INT_IRQN",
+    "UART_1_INST_DMA_TRIGGER",
+    "DMA_UART1Tx_CHAN_ID",
     "DL_UART_IIDX_DMA_DONE_TX",
     "DL_UART_IIDX_RX"
   ],
   "parameters": {
-    "uart": "UART0",
+    "uart0": "UART0",
+    "uart1": "UART1",
     "baud": 115200,
     "format": "8N1",
-    "tx_pin": "PA10",
-    "rx_pin": "PA11",
-    "dma_channel": "DMA_CH0",
-    "dma_trigger": "UART0_TX",
+    "uart0_tx_pin": "PA10",
+    "uart0_rx_pin": "PA11",
+    "uart1_tx_pin": "PB6",
+    "uart1_rx_pin": "PB7",
+    "uart0_dma_channel": "DMA_CH0",
+    "uart1_dma_channel": "DMA_CH1",
     "rx_frame_end": "LF",
+    "rx_modes": ["UART_RX_MODE_NONE", "UART_RX_MODE_POLL", "UART_RX_MODE_ISR_CALLBACK"],
     "echo_protocol": "Send a text line such as ping\\n and the MCU replies over DMA TX.",
     "float_protocol": "Optional ASCII CSV parsing, for example 1.23,44,55.7\\n"
   },
-  "tags": ["uart", "dma", "tx", "rx", "echo", "serial", "smoke-test", "float", "interrupt", "nvic", "context", "ch340", "vofa", "pid-tuning"]
+  "tags": ["uart", "dual-uart", "dma", "tx", "rx", "echo", "serial", "smoke-test", "float", "interrupt", "poll", "nvic", "context", "ch340", "vofa", "pid-tuning"]
 }

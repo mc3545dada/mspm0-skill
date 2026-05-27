@@ -117,6 +117,7 @@ When applying an example to a user project:
 - Preserve the user's existing file layout and naming. If an example uses `BSP/`, do not create `BSP/` in the user project unless the user asked for that structure or the project already follows it.
 - Prefer the user's local style when it conflicts with an example's directory names, wrapper names, or layering.
 - Consider official TI SDK examples and local SDK metadata at the same or higher priority when they better match the user's board, SDK version, peripheral, or toolchain.
+- For DMA UART examples, keep TX buffers per UART instance, avoid shared static printf buffers, and choose RX handling per port: ISR callback for the one port that needs immediate line parsing, `UART_poll()` for extra receive ports, or TX-only init for ports that do not receive.
 
 ## Tools
 

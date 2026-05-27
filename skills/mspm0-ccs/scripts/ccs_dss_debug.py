@@ -472,6 +472,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_arg_parser()
     args = parser.parse_args(argv)
 
+    if args.command in {"run-to-symbol", "break-line"} and args.load and args.symbols:
+        parser.error("--load and --symbols are mutually exclusive")
+
     project_dir = Path(args.project_dir).resolve()
     if not project_dir.exists():
         raise SystemExit(f"error: project directory does not exist: {project_dir}")

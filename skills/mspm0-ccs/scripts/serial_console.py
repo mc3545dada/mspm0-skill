@@ -62,10 +62,10 @@ def build_tx_payload(args: argparse.Namespace) -> bytes | None:
     else:
         return None
 
-    if args.send_line or args.append_newline:
-        payload += b"\n"
     if args.send_crlf:
         payload += b"\r\n"
+    elif args.send_line or args.append_newline:
+        payload += b"\n"
     return payload
 
 
@@ -157,7 +157,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--send", help="Text to send after opening the port.")
     parser.add_argument("--send-line", action="store_true", help="Append LF to the sent payload. Useful for line-based MCU parsers.")
     parser.add_argument("--append-newline", action="store_true", help="Deprecated alias for --send-line.")
-    parser.add_argument("--send-crlf", action="store_true", help="Append CRLF to the sent payload.")
+    parser.add_argument("--send-crlf", action="store_true", help="Append CRLF to the sent payload. If combined with --send-line, CRLF is used instead of LF.")
     parser.add_argument("--send-hex", help="Hex bytes to send, such as '01 02 0A' or '01020A'.")
     parser.add_argument("--repeat", type=int, default=1, help="Number of times to send the payload. Default: 1.")
     parser.add_argument("--interval", type=float, default=1.0, help="Seconds between repeated sends. Default: 1.0.")

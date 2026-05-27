@@ -2,6 +2,7 @@
 #include "ti_msp_dl_config.h"
 
 static UART_Context *uart0;
+static UART_Context *uart1;
 
 static void UART_RxCompleteCallback(UART_Context *uart)
 {
@@ -24,9 +25,11 @@ static void UART_RxCompleteCallback(UART_Context *uart)
 int main(void)
 {
     SYSCFG_DL_init();
-    uart0 = UART_init(UART_0_INST);
+    uart0 = UART_init(UART_0_INST, UART_RX_MODE_ISR_CALLBACK, UART_RxCompleteCallback);
+    uart1 = UART_init(UART_1_INST, UART_RX_MODE_POLL, UART_RxCompleteCallback);
 
     while (1) {
+        UART_poll(UART_1_INST);
     }
 }
 
@@ -37,9 +40,21 @@ void UART0_IRQHandler(void)
             UART_DMADoneTxCallback(UART_0_INST);
             break;
         case DL_UART_IIDX_RX:
-            if (UART_RxCallback(UART_0_INST)) {
-                UART_RxCompleteCallback(uart0);
-            }
+            UART_RxIRQHandler(UART_0_INST);
+            break;
+        default:
+            break;
+    }
+}
+
+void UART1_IRQHandler(void)
+{
+    switch (DL_UART_getPendingInterrupt(UART_1_INST)) {
+        case DL_UART_IIDX_DMA_DONE_TX:
+            UART_DMADoneTxCallback(UART_1_INST);
+            break;
+        case DL_UART_IIDX_RX:
+            UART_RxIRQHandler(UART_1_INST);
             break;
         default:
             break;

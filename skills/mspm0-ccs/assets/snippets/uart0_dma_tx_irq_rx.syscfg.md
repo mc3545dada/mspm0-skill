@@ -1,4 +1,4 @@
-# UART0 DMA TX + IRQ RX SysConfig Snippet
+# UART DMA TX + IRQ RX SysConfig Snippet
 
 ## Use Case
 
@@ -33,21 +33,16 @@ UART1.DMA_CHANNEL_TX.peripheral.$suggestSolution = "DMA_CH0";
 
 ## Runtime Requirement
 
-Call a user helper after `SYSCFG_DL_init()` to enable the UART interrupt in NVIC:
+Call a user helper after `SYSCFG_DL_init()` to bind the generated SysConfig instance, start RX, and enable the UART interrupt in NVIC:
 
 ```c
+static UART_Context *uart0;
+
 SYSCFG_DL_init();
-UART_init();
+uart0 = UART_init(UART_0_INST);
 ```
 
-```c
-void UART_init(void) {
-    NVIC_ClearPendingIRQ(UART_0_INST_INT_IRQN);
-    NVIC_EnableIRQ(UART_0_INST_INT_IRQN);
-}
-```
-
-The `DMA_DONE_TX` interrupt sets `UART0TxDMADone` back to 1. The `RX` interrupt lets the user callback collect bytes until `\n`.
+The `DMA_DONE_TX` interrupt calls `UART_DMADoneTxCallback(UART_0_INST)` to mark TX DMA idle again. The `RX` interrupt calls `UART_RxCallback(UART_0_INST)` until a complete `\n`-terminated frame is published.
 
 ## Generated Names Observed
 

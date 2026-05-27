@@ -1,40 +1,45 @@
 #include "BSP/UART.h"
 #include "ti_msp_dl_config.h"
 
+static UART_Context *uart0;
+
+static void UART_RxCompleteCallback(UART_Context *uart)
+{
+    uint8_t sent;
+
+    if (uart == 0) {
+        return;
+    }
+
+    UART_parseRxFloats(uart->inst);
+    sent = UART_tryPrintfDMA(uart->inst, "%s | %.2f,%.2f,%.2f\n",
+        uart->rxBuf,
+        uart->floatBuf[0], uart->floatBuf[1], uart->floatBuf[2]);
+    (void) sent;
+
+    UART_clearNewFrame(uart->inst);
+    // Keep PC-to-MCU send rate modest; this example targets low-rate parameter debugging.
+}
 
 int main(void)
 {
-    uint16_t floatCount;
-
-
     SYSCFG_DL_init();
-    UART_init();
+    uart0 = UART_init(UART_0_INST);
 
     while (1) {
-
-        if (UART0RxDone) {
-            floatCount = UART0_parseRxFloats();
-
-
-            UART0_printfDMA("Received %d bytes: %s\n", UART0RxLen, UART0RxBuf);
-            UART0_printfDMA("Parsed %d floats err=%d ovf=%d: %.2f,%.2f,%.2f\n",
-                floatCount, UART0FloatParseError, UART0RxOvf,
-                UART0FloatBuf[0], UART0FloatBuf[1], UART0FloatBuf[2]);
-            UART0_startReceive();
-        }
-        
-
     }
 }
 
-
-void UART0_IRQHandler(void) {
+void UART0_IRQHandler(void)
+{
     switch (DL_UART_getPendingInterrupt(UART_0_INST)) {
         case DL_UART_IIDX_DMA_DONE_TX:
-            UART0_DMADoneTxCallback();
+            UART_DMADoneTxCallback(UART_0_INST);
             break;
         case DL_UART_IIDX_RX:
-            UART0_RxCallback();
+            if (UART_RxCallback(UART_0_INST)) {
+                UART_RxCompleteCallback(uart0);
+            }
             break;
         default:
             break;

@@ -50,7 +50,7 @@ python scripts\ccs_dss_debug.py <project-dir> run-to-symbol --symbol main --load
 python scripts\ccs_dss_debug.py <project-dir> break-line --source empty.c --line 5 --load --reset "System Reset"
 
 # Load debug symbols only; do not program flash.
-python scripts\ccs_dss_debug.py <project-dir> load-symbols --symbol main --symbol UART0TxDMADone
+python scripts\ccs_dss_debug.py <project-dir> load-symbols --symbol main --symbol UART_DMADoneTxCallback
 
 # Load symbols only, reset, and halt at a source line without reprogramming flash.
 python scripts\ccs_dss_debug.py <project-dir> break-line --source BSP/UART.c --line 75 --symbols --reset "System Reset"

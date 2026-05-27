@@ -1,112 +1,286 @@
 #include "UART.h"
 #include <stdlib.h>
 
-volatile uint8_t UART0TxDMADone = 1; // UART0发送DMA完成标志
-volatile uint8_t UART0RxDone = 0; // UART0接收完成标志
-volatile uint8_t UART0RxBuf[UART_RX_BUF_SIZE] = {0}; // UART0接收缓冲区
-volatile uint16_t UART0RxPos = 0; // UART0接收位置
-volatile uint16_t UART0RxLen = 0; // UART0接收长度(不包含结束符)
-volatile uint8_t UART0RxOvf = 0; // UART0接收溢出数据
+#define UART_DMA_CH_NONE 0xFFu
 
-float UART0FloatBuf[UART_FLOAT_BUF_SIZE] = {0};
-volatile uint16_t UART0FloatLen = 0;
-volatile uint8_t UART0FloatParseError = 0;
+static UART_Context uartContexts[UART_MAX_CONTEXTS];
 
-void UART_init(void) {
-    NVIC_ClearPendingIRQ(UART_0_INST_INT_IRQN);
-    NVIC_EnableIRQ(UART_0_INST_INT_IRQN);
+static uint16_t UART_clampPrintfLength(int len)
+{
+    if (len <= 0) {
+        return 0;
+    }
+
+    if (len >= UART_TX_BUF_SIZE) {
+        return UART_TX_BUF_SIZE - 1;
+    }
+
+    return (uint16_t) len;
 }
 
-/**
- * @brief UART0发送字符串
- * @note 使用阻塞方式
- * @param str 待发送字符串指针
- * @return 字符串长度
- */
-int UART0_sendStr(const char* str) {
+static UART_Context *UART_allocContext(UART_Regs *uart)
+{
+    uint8_t i;
+
+    for (i = 0; i < UART_MAX_CONTEXTS; i++) {
+        if (uartContexts[i].inst == uart) {
+            return &uartContexts[i];
+        }
+    }
+
+    for (i = 0; i < UART_MAX_CONTEXTS; i++) {
+        if (uartContexts[i].inst == 0) {
+            uartContexts[i].inst = uart;
+            uartContexts[i].txDMADone = 1;
+            uartContexts[i].rxBuf[0] = '\0';
+            uartContexts[i].rxWorkBuf[0] = '\0';
+            return &uartContexts[i];
+        }
+    }
+
+    return 0;
+}
+
+UART_Context *UART_getContext(UART_Regs *uart)
+{
+    return UART_allocContext(uart);
+}
+
+static IRQn_Type UART_getIRQn(UART_Regs *uart)
+{
+#if defined(UART_0_INST) && defined(UART_0_INST_INT_IRQN)
+    if (uart == UART_0_INST) {
+        return UART_0_INST_INT_IRQN;
+    }
+#endif
+#if defined(UART_1_INST) && defined(UART_1_INST_INT_IRQN)
+    if (uart == UART_1_INST) {
+        return UART_1_INST_INT_IRQN;
+    }
+#endif
+#if defined(UART_2_INST) && defined(UART_2_INST_INT_IRQN)
+    if (uart == UART_2_INST) {
+        return UART_2_INST_INT_IRQN;
+    }
+#endif
+#if defined(UART_3_INST) && defined(UART_3_INST_INT_IRQN)
+    if (uart == UART_3_INST) {
+        return UART_3_INST_INT_IRQN;
+    }
+#endif
+    return (IRQn_Type) 0;
+}
+
+static uint8_t UART_getDMATxChannel(UART_Regs *uart)
+{
+#if defined(UART_0_INST) && defined(DMA_UART0Tx_CHAN_ID)
+    if (uart == UART_0_INST) {
+        return DMA_UART0Tx_CHAN_ID;
+    }
+#endif
+#if defined(UART_1_INST) && defined(DMA_UART1Tx_CHAN_ID)
+    if (uart == UART_1_INST) {
+        return DMA_UART1Tx_CHAN_ID;
+    }
+#endif
+#if defined(UART_2_INST) && defined(DMA_UART2Tx_CHAN_ID)
+    if (uart == UART_2_INST) {
+        return DMA_UART2Tx_CHAN_ID;
+    }
+#endif
+#if defined(UART_3_INST) && defined(DMA_UART3Tx_CHAN_ID)
+    if (uart == UART_3_INST) {
+        return DMA_UART3Tx_CHAN_ID;
+    }
+#endif
+    return UART_DMA_CH_NONE;
+}
+
+UART_Context *UART_init(UART_Regs *uart)
+{
+    IRQn_Type irqn;
+    UART_Context *ctx;
+
+    ctx = UART_allocContext(uart);
+    if (ctx == 0) {
+        return 0;
+    }
+
+    UART_startReceive(uart);
+    ctx->txDMADone = 1;
+
+    irqn = UART_getIRQn(uart);
+    NVIC_ClearPendingIRQ(irqn);
+    NVIC_EnableIRQ(irqn);
+
+    return ctx;
+}
+
+int UART_sendStr(UART_Regs *uart, const char *str)
+{
     int cnt = 0;
+
     while (*str) {
-        DL_UART_transmitDataBlocking(UART_0_INST, (uint8_t)*str);
+        DL_UART_transmitDataBlocking(uart, (uint8_t) *str);
         str++;
         cnt++;
     }
+
     return cnt;
 }
 
-/**
- * @brief UART0 printf
- * @param fmt 格式控制字符串与参数列表
- * @return 字符串长度(vsprintf返回值)
- */
-int UART0_printf(char* fmt, ...) {
+int UART_printf(UART_Regs *uart, char *fmt, ...)
+{
     static char buf[UART_TX_BUF_SIZE];
     int len;
     va_list args;
+
     va_start(args, fmt);
-    len = vsprintf(buf, fmt, args);
+    len = vsnprintf(buf, UART_TX_BUF_SIZE, fmt, args);
     va_end(args);
-    UART0_sendStr(buf);
+    UART_sendStr(uart, buf);
+
     return len;
 }
 
-/**
- * @brief UART0使用DMA方式发送字符串
- * @note 调用该函数时, 若上次UART DMA已传送完成, 则占用时间最短
- * @param str 待发送字符串指针
- * @param len 字符串长度
- */
-void UART0_sendStrDMA(const char* str, uint16_t len) {
-    while (!UART0TxDMADone);
-    UART0TxDMADone = 0;
-    DL_DMA_setSrcAddr(DMA, DMA_UART0Tx_CHAN_ID, (uint32_t)str);
-    DL_DMA_setDestAddr(DMA, DMA_UART0Tx_CHAN_ID, (uint32_t)(&UART_0_INST->TXDATA));
-    DL_DMA_setTransferSize(DMA, DMA_UART0Tx_CHAN_ID, len);
-    DL_DMA_enableChannel(DMA, DMA_UART0Tx_CHAN_ID);
+void UART_sendStrDMA(UART_Regs *uart, const char *str, uint16_t len)
+{
+    UART_Context *ctx;
+
+    ctx = UART_getContext(uart);
+    if (ctx == 0) {
+        return;
+    }
+
+    while (!ctx->txDMADone);
+    (void) UART_trySendStrDMA(uart, str, len);
 }
 
-/**
- * @brief UART0 printf (使用DMA方式)
- * @note 调用该函数时, 若上次UART DMA已传送完成, 则占用时间最短
- * @param fmt 格式控制字符串与参数列表
- */
-void UART0_printfDMA(char* fmt, ...) {
+void UART_printfDMA(UART_Regs *uart, char *fmt, ...)
+{
     static char buf[UART_TX_BUF_SIZE];
-    uint16_t len;
+    int len;
     va_list args;
-    while (!UART0TxDMADone);
+    UART_Context *ctx;
+
+    ctx = UART_getContext(uart);
+    if (ctx == 0) {
+        return;
+    }
+
+    while (!ctx->txDMADone);
     va_start(args, fmt);
-    len = (uint16_t)vsprintf(buf, fmt, args);
+    len = vsnprintf(buf, UART_TX_BUF_SIZE, fmt, args);
     va_end(args);
-    UART0_sendStrDMA(buf, len);
+    UART_sendStrDMA(uart, buf, UART_clampPrintfLength(len));
 }
 
-/**
- * @brief UART0开始接收数据
- * @note 先处理完上次接收数据, 再调用该函数继续接收
- */
-void UART0_startReceive(void) {
-    UART0RxPos = 0;
-    UART0RxDone = 0;
-    UART0RxOvf = 0;
-    UART0RxBuf[0] = '\0';
+uint8_t UART_trySendStrDMA(UART_Regs *uart, const char *str, uint16_t len)
+{
+    uint8_t dmaChannel;
+    UART_Context *ctx;
+
+    ctx = UART_getContext(uart);
+    if ((ctx == 0) || (str == 0) || (len == 0)) {
+        return 0;
+    }
+
+    if (!ctx->txDMADone) {
+        return 0;
+    }
+
+    dmaChannel = UART_getDMATxChannel(uart);
+    if (dmaChannel == UART_DMA_CH_NONE) {
+        UART_sendStr(uart, str);
+        return 1;
+    }
+
+    ctx->txDMADone = 0;
+    DL_DMA_setSrcAddr(DMA, dmaChannel, (uint32_t) str);
+    DL_DMA_setDestAddr(DMA, dmaChannel, (uint32_t) (&uart->TXDATA));
+    DL_DMA_setTransferSize(DMA, dmaChannel, len);
+    DL_DMA_enableChannel(DMA, dmaChannel);
+
+    return 1;
 }
 
-// UART0 DMA Tx完成中断回调
-// Parse the current newline-terminated RX text frame into UART0FloatBuf.
-uint16_t UART0_parseRxFloats(void) {
+uint8_t UART_tryPrintfDMA(UART_Regs *uart, char *fmt, ...)
+{
+    static char buf[UART_TX_BUF_SIZE];
+    int len;
+    va_list args;
+    UART_Context *ctx;
+
+    ctx = UART_getContext(uart);
+    if ((ctx == 0) || (!ctx->txDMADone)) {
+        return 0;
+    }
+
+    va_start(args, fmt);
+    len = vsnprintf(buf, UART_TX_BUF_SIZE, fmt, args);
+    va_end(args);
+
+    return UART_trySendStrDMA(uart, buf, UART_clampPrintfLength(len));
+}
+
+void UART_startReceive(UART_Regs *uart)
+{
+    UART_Context *ctx;
+
+    ctx = UART_getContext(uart);
+    if (ctx == 0) {
+        return;
+    }
+
+    ctx->rxPos = 0;
+    ctx->rxDone = 0;
+    ctx->rxOvf = 0;
+    ctx->rxWorkBuf[0] = '\0';
+}
+
+uint8_t UART_hasNewFrame(UART_Regs *uart)
+{
+    UART_Context *ctx;
+
+    ctx = UART_getContext(uart);
+    if (ctx == 0) {
+        return 0;
+    }
+
+    return ctx->rxDone;
+}
+
+void UART_clearNewFrame(UART_Regs *uart)
+{
+    UART_Context *ctx;
+
+    ctx = UART_getContext(uart);
+    if (ctx != 0) {
+        ctx->rxDone = 0;
+    }
+}
+
+uint16_t UART_parseRxFloats(UART_Regs *uart)
+{
     uint16_t i;
     char *cursor;
     char *end;
     float value;
+    UART_Context *ctx;
+
+    ctx = UART_getContext(uart);
+    if (ctx == 0) {
+        return 0;
+    }
 
     for (i = 0; i < UART_FLOAT_BUF_SIZE; i++) {
-        UART0FloatBuf[i] = 0.0f;
+        ctx->floatBuf[i] = 0.0f;
     }
-    UART0FloatLen = 0;
-    UART0FloatParseError = 0;
+    ctx->floatLen = 0;
+    ctx->floatParseError = 0;
 
-    cursor = (char *)UART0RxBuf;
-    while ((*cursor != '\0') && (UART0FloatLen < UART_FLOAT_BUF_SIZE)) {
+    cursor = (char *) ctx->rxBuf;
+    while ((*cursor != '\0') && (ctx->floatLen < UART_FLOAT_BUF_SIZE)) {
         while ((*cursor == ' ') || (*cursor == '\t') || (*cursor == ',') || (*cursor == ';')) {
             cursor++;
         }
@@ -118,58 +292,82 @@ uint16_t UART0_parseRxFloats(void) {
         end = cursor;
         value = strtof(cursor, &end);
         if (end == cursor) {
-            UART0FloatParseError = 1;
+            ctx->floatParseError = 1;
             break;
         }
 
-        UART0FloatBuf[UART0FloatLen] = value;
-        UART0FloatLen++;
+        ctx->floatBuf[ctx->floatLen] = value;
+        ctx->floatLen++;
         cursor = end;
 
         if ((*cursor != '\0') && (*cursor != ' ') && (*cursor != '\t') && (*cursor != ',') && (*cursor != ';')) {
-            UART0FloatParseError = 1;
+            ctx->floatParseError = 1;
             break;
         }
     }
 
-    return UART0FloatLen;
+    return ctx->floatLen;
 }
 
-void UART0_DMADoneTxCallback(void) {
-    UART0TxDMADone = 1;
+void UART_DMADoneTxCallback(UART_Regs *uart)
+{
+    UART_Context *ctx;
+
+    ctx = UART_getContext(uart);
+    if (ctx != 0) {
+        ctx->txDMADone = 1;
+    }
 }
 
-// UART0 Rx中断回调
-void UART0_RxCallback(void) {
+uint8_t UART_RxCallback(UART_Regs *uart)
+{
     uint8_t rxData;
+    UART_Context *ctx;
 
-    rxData = DL_UART_receiveData(UART_0_INST);
-
-    if (!UART0RxDone) { // 上次数据处理完成后, 继续接收
-        if (rxData == '\r') {
-            return;
-        }
-
-        if (rxData == UART_RX_TERMINATOR) {
-            UART0RxBuf[UART0RxPos] = '\0';
-            UART0RxLen = UART0RxPos;
-            UART0RxDone = 1;
-            return;
-        }
-
-        if (UART0RxPos >= (UART_RX_BUF_SIZE - 1)) {
-            UART0RxBuf[UART_RX_BUF_SIZE - 1] = '\0';
-            UART0RxLen = UART0RxPos;
-            UART0RxOvf = rxData;
-            UART0RxDone = 1;
-            return;
-        }
-
-        UART0RxBuf[UART0RxPos] = rxData;
-        UART0RxPos++;
+    ctx = UART_getContext(uart);
+    if (ctx == 0) {
+        (void) DL_UART_receiveData(uart);
+        return 0;
     }
-    else { // 未及时处理数据放入溢出区
-        UART0RxOvf = rxData;
+
+    rxData = DL_UART_receiveData(uart);
+
+    if (rxData == '\r') {
+        return 0;
     }
+
+    if (rxData == UART_RX_TERMINATOR) {
+        uint16_t i;
+
+        ctx->rxWorkBuf[ctx->rxPos] = '\0';
+        for (i = 0; i <= ctx->rxPos; i++) {
+            ctx->rxBuf[i] = ctx->rxWorkBuf[i];
+        }
+        ctx->rxLen = ctx->rxPos;
+        ctx->rxFrameCount++;
+        ctx->rxDone = 1;
+        ctx->rxPos = 0;
+        ctx->rxWorkBuf[0] = '\0';
+        return 1;
+    }
+
+    if (ctx->rxPos >= (UART_RX_BUF_SIZE - 1)) {
+        uint16_t i;
+
+        ctx->rxWorkBuf[UART_RX_BUF_SIZE - 1] = '\0';
+        for (i = 0; i < UART_RX_BUF_SIZE; i++) {
+            ctx->rxBuf[i] = ctx->rxWorkBuf[i];
+        }
+        ctx->rxLen = UART_RX_BUF_SIZE - 1;
+        ctx->rxOvf = rxData;
+        ctx->rxFrameCount++;
+        ctx->rxDone = 1;
+        ctx->rxPos = 0;
+        ctx->rxWorkBuf[0] = '\0';
+        return 1;
+    }
+
+    ctx->rxWorkBuf[ctx->rxPos] = rxData;
+    ctx->rxPos++;
+    return 0;
 }
-

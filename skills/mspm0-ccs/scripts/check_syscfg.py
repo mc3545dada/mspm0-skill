@@ -430,6 +430,10 @@ def check_project(root: Path) -> tuple[list[Message], dict[str, object]]:
     messages: list[Message] = []
     details: dict[str, object] = {}
 
+    if not root.is_dir():
+        messages.append(Message("error", "Project directory does not exist or is not a directory.", str(root)))
+        return messages, details
+
     syscfg_files = find_syscfg_files(root)
     details["syscfg_files"] = [rel(p, root) for p in syscfg_files]
     keil_projects = find_keil_projects(root)
@@ -742,7 +746,7 @@ def main() -> int:
 
     root = Path(args.project).resolve()
     messages, details = check_project(root)
-    if args.probe:
+    if args.probe and root.is_dir():
         add_probe_check(root, messages, details)
     has_error = any(msg.level == "error" for msg in messages)
 

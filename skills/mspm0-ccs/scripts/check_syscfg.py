@@ -295,8 +295,12 @@ def find_validation_hints(root: Path) -> dict[str, str]:
         hints["flash"] = "Multiple program outputs found. Choose the intended output explicitly before flashing with DSLite."
 
     keil_projects = find_keil_projects(root)
-    if keil_projects:
+    if len(keil_projects) == 1:
         hints["keil_build"] = f'Open "{keil_projects[0]}" in Keil/uVision and build the active target.'
+    elif len(keil_projects) > 1:
+        hints["keil_project_selection"] = (
+            "Multiple Keil/uVision projects found. Select the intended .uvprojx before building."
+        )
 
     cmake_info = detect_cmake_info(root)
     if cmake_info["has_cmake"]:
@@ -720,6 +724,7 @@ def print_text(root: Path, messages: list[Message], details: dict[str, object]) 
             "cmake_configure",
             "cmake_build",
             "keil_build",
+            "keil_project_selection",
             "ccs_target_config_selection",
             "list_debug_cores",
             "ccs_dss_probe",
